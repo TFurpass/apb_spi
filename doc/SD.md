@@ -152,7 +152,7 @@ Commands start from MSB to LSB with a start_bit (0) and transmission_bit (1), af
     - Reads OCR HCS-bit (High capacity select) register to determine SD card cappacity, high capacity SDHC or standard v2 sd card is determined by this.
     - Provides sd card host with the cards voltage range support and tells if the card does not support the voltage range given at ACMD41.
 
-    TODO section 5.1 of https://academy.cba.mit.edu/classes/networking_communications/SD/SD.pdf for more info on ocr
+    TODO section 5.1 of https://academy.cba.mit.edu/classes/networking_communications/SD/SD.pdf for more info on ocr and/or check official spec for info on all registers in the sd card.
 
 6. CMD16 SET_BLOCKLEN (response format R1 + data)  
 `This command is sent for different types of sd cards to conf block length, 512 bytes allow to be used with atleast SDHC and older cards, command is not needed to be sent for SDHC since 512 is default for it but other cards need this command.`
