@@ -8,6 +8,7 @@ package:
     - "Antti Nurmi <antti.nurmi@tuni.fi>"
 
 dependencies:
+  apb: { git: "https://github.com/pulp-platform/apb.git", rev: "master"}
 
 sources:
   - rtl/spi_master_fifo.sv
