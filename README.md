@@ -2,18 +2,20 @@
 
 # SPI controller input/config for SD-card communication
 
-BASEADDR DEFAULT = 0x0000 0000
+BASEADDR DEFAULT = 0x0000 0000  
 
-| COMMAND | Purpose                                                      | Dataline (MOSI)   | Response                                        |
-| ------- | ------------------------------------------------------------ | ----------------- | ----------------------------------------------- |
-| CMD0    | Reset card and request SPI mode                              | 40 00 00 00 00 95 | R1 = 0x01 idle state entered                    |
-| CMD8    | Check voltage range and card generation                      | 48 00 00 01 AA 87 | R7 echo ending in 0x01AA for SDv2+              |
-| CMD55   | Prefix next command as application-specific                  | 77 00 00 00 00 01 | R1 = 0x01 while still idle                      |
-| ACMD41  | init command: send same command & check response until ready | 69 40 00 00 00 01 | 0x01 busy, when 0x00 it is ready                |
-| CMD58   | Read OCR and card capacity status                            | 7A 00 00 00 00 01 | R3; use CCS to distinguish SDSC from SDHC/SDXC  |
-| CMD16   | Set block length for SDSC access                             | 50 00 00 02 00 01 | Use when you need 512-byte SDSC block transfers |
-| CMD17   | Reads one block set by CMD16 (default 512kB)                 | 51 00 00 00 00 01 | TODO                                            |
-| CMD24   | Writes one data block                                        | 58 00 00 00 00 01 | TODO                                            |
+**Needs testing how the spi_master sends the txfifo data and how it receives rxfifo data to determine if spicmd and spiaddr should be used to transmit the whole sd card cmd and its additional fields or whether they should act as the start bit & transaction bit. Fifo could be configured to 8 bit data packets for init and commands and then to 512kB for data reads. Yet to be determined how to approach this. Current approach is to use spicmd and spiaddr for commands + additional fields and fifos for actual data, this leaves the question of how the data comes from the sd card, since normally a read cmd is not given to read a response.**
+
+| COMMAND | Purpose                                                      | Dataline (MOSI)   | Response + info                                     |
+| ------- | ------------------------------------------------------------ | ----------------- | --------------------------------------------------- |
+| CMD0    | Reset card and request SPI mode                              | 40 00 00 00 00 95 | R1 = 0x01 idle state entered                        |
+| CMD8    | Check voltage range and card generation                      | 48 00 00 01 AA 87 | R7 echo ending in 0x01AA for SDv2+                  |
+| CMD55   | Prefix next command as application-specific                  | 77 00 00 00 00 01 | R1 = 0x01 while still idle                          |
+| ACMD41  | init command: send same command & check response until ready | 69 40 00 00 00 01 | 0x01 busy, when 0x00 it is ready                    |
+| CMD58   | Read OCR and card capacity status                            | 7A 00 00 00 00 01 | R3; use CCS to distinguish SDSC from SDHC/SDXC      |
+| CMD16   | Set block length for SDSC access                             | 50 00 00 02 00 01 | R1; Use when you need 512-byte SDSC block transfers |
+| CMD17   | Reads one block set by CMD16 (default 512kB)                 | 51 00 00 00 00 01 | R1                                                  |
+| CMD24   | Writes one data block                                        | 58 00 00 00 00 01 | R1                                                  |
 
 ## CONFIG  
 
@@ -25,6 +27,7 @@ BASEADDR DEFAULT = 0x0000 0000
 | Set spi controller to write with normal SPI, chipselect to cs0 | BASE ADDR + 0x04 | 32'h??? "what ever value to get 400kHz" |
 
 ### **Set SPILEN**
+
 | Config SPILEN reg                                                                                      | PADDR            | PWDATA       |
 | ------------------------------------------------------------------------------------------------------ | ---------------- | ------------ |
 | SPICMD 8 bits for sd CMD, SPIADDR to 40 bits for CMD additional fields + CRC + stop bit, FIFO to 512kB | BASE ADDR + 0010 | 32'h10002808 |
