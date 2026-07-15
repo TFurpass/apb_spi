@@ -1,0 +1,4 @@
+*.vcd
+/sdcard.img
+/tb_sdspi
+obj-pc/
