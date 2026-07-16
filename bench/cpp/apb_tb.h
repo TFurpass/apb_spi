@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Filename:	bench/cpp/apb_tb.h MODIFIED VERSION!!
+// Filename:	bench/cpp/apb_tb.h MODIFIED VERSION
 // {{{
 // Project:	SD-Card controller
 //
@@ -66,42 +66,35 @@ public:
 	*/
 
 	unsigned apb_read(unsigned a){
-		//Done with NO wait states
-		
+		//Read-operation from given address
+
 		int errcount = 0;
 		unsigned result;
 
 		printf("APB-READ(%08x)\n", a);
 
-		//
 		// Setup phase
-		//
 		TESTB<VA>::m_core->PADDR   = a;
 		TESTB<VA>::m_core->PWRITE  = 0;
 		TESTB<VA>::m_core->PSEL    = 1;
 		TESTB<VA>::m_core->PENABLE = 0;
-
+		
 		TICK();
-
-		//
 		// Access phase
-		//
 		TESTB<VA>::m_core->PENABLE = 1;
 
-		while ((errcount++ < BOMBCOUNT)
-			&& (!TESTB<VA>::m_core->PREADY))
+		while ((errcount++ < BOMBCOUNT) && (!TESTB<VA>::m_core->PREADY))
 		{
 			TICK();
 		}
 
 		if (errcount >= BOMBCOUNT) {
-			printf("APB-READ BOMB: NO RESPONSE AFTER %d CLOCKS\n",
-					errcount);
+			printf("APB-READ BOMB: NO RESPONSE AFTER %d CLOCKS\n", errcount);
 			m_bomb = true;
 		}
 
 		result = TESTB<VA>::m_core->PRDATA;
-
+		TICK();
 		//
 		// Release the bus
 		//
@@ -213,24 +206,24 @@ public:
 	// }}}
 
 	void apb_write(unsigned a, unsigned v)
-	{
+	{	
+
 		int errcount = 0;
 
 		printf("APB-WRITE(%08x) <= %08x\n", a, v);
-		//
+		
 		// Setup phase
-		//
+		
+		TESTB<VA>::m_core->PSEL    = 1;
 		TESTB<VA>::m_core->PADDR   = a;
 		TESTB<VA>::m_core->PWDATA  = v;
 		TESTB<VA>::m_core->PWRITE  = 1;
-		TESTB<VA>::m_core->PSEL    = 1;
 		TESTB<VA>::m_core->PENABLE = 0;
-
+		
+		
 		TICK();
-
-		//
-		// Access phase
-		//
+		
+		// Access phase		
 		TESTB<VA>::m_core->PENABLE = 1;
 
 		while ((errcount++ < BOMBCOUNT)
@@ -259,7 +252,6 @@ public:
 		//
 		TESTB<VA>::m_core->PSEL    = 0;
 		TESTB<VA>::m_core->PENABLE = 0;
-		TESTB<VA>::m_core->PWRITE  = 0;
 
 		TICK();
 }

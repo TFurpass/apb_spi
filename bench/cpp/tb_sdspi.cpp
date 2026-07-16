@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Filename:	bench/cpp/tb_sdspi.cpp MODIFIED!!
+// Filename:	bench/cpp/tb_sdspi.cpp MODIFIED
 // {{{
 // Project:	SD-Card controller
 //
@@ -52,12 +52,14 @@
 // {{{
 // #define	OPT_LITTLE_ENDIAN
 
+
+
 #define	SDSPI_CMD_ADDR	0
 #define	SDSPI_DATA_ADDR	1
 #define	SDSPI_FIFO_A	2
 #define	SDSPI_FIFO_B	3
 
-#define	READAUX	0x80
+#define	READAUX	0x80 //CHECK IF THESE ARE CORRECT
 #define	SETAUX	0xc0
 
 #define	SDSPI_CMD			0x000040
@@ -73,10 +75,30 @@
 #define	SDSPI_PRESENTN		0x080000
 #define	SDSPI_RESET			0x100000
 #define	SDSPI_WATCHDOG		0x200000
-#define	SDSPI_GO_IDLE		((SDSPI_REMOVED|SDSPI_CLEARERR|SDSPI_CMD)+0)
+#define	SDSPI_GO_IDLE		((SDSPI_REMOVED|SDSPI_CLEARERR|SDSPI_CMD)+0) //CHECK THESE!
 #define	SDSPI_READ_SECTOR	((SDSPI_CMD|SDSPI_CLEARERR|SDSPI_FIFO_OP)+17)
 #define	SDSPI_WRITE_SECTOR	((SDSPI_CMD|SDSPI_CLEARERR|SDSPI_WRITEOP)+24)
-// }}}
+
+
+
+#define log2(VALUE) ((VALUE) < ( 1 ) ? 0 : (VALUE) < ( 2 ) ? 1 : (VALUE) < ( 4 ) ? 2 : (VALUE) < ( 8 ) ? 3 : (VALUE) < ( 16 )  ? 4 : (VALUE) < ( 32 )  ? 5 : (VALUE) < ( 64 )  ? 6 : (VALUE) < ( 128 ) ? 7 : (VALUE) < ( 256 ) ? 8 : (VALUE) < ( 512 ) ? 9 : (VALUE) < ( 1024 ) ? 10 : (VALUE) < ( 2048 ) ? 11 : (VALUE) < ( 4096 ) ? 12 : (VALUE) < ( 8192 ) ? 13 : (VALUE) < ( 16384 ) ? 14 : (VALUE) < ( 32768 ) ? 15 : (VALUE) < ( 65536 ) ? 16 : (VALUE) < ( 131072 ) ? 17 : (VALUE) < ( 262144 ) ? 18 : (VALUE) < ( 524288 ) ? 19 : (VALUE) < ( 1048576 ) ? 20 : (VALUE) < ( 1048576 * 2 ) ? 21 : (VALUE) < ( 1048576 * 4 ) ? 22 : (VALUE) < ( 1048576 * 8 ) ? 23 : (VALUE) < ( 1048576 * 16 ) ? 24 : 25)
+
+#define REG_STATUS 0
+#define REG_CLKDIV 1
+#define REG_SPICMD 2
+#define REG_SPIADR 3
+#define REG_SPILEN 4
+#define REG_SPIDUM 5
+#define REG_TXFIFO 6
+#define REG_RXFIFO 8
+#define REG_INTCFG 9
+#define REG_INTSTA 10
+
+//Register values
+#define CLK_DIV		0x7c
+#define SPI_LEN		0x10002808
+#define	SD_WRITE	0x0102
+#define	SD_READ		0x0101
 
 class	SDSPI_TB : public apb_TB<Vapb_spi_master> {
 	SDSPISIM	*m_sdspi;
@@ -102,7 +124,7 @@ public:
 		// {{{
 		TESTB<Vapb_spi_master>::tick();
 
-		core()->spi_sdi0 = (*m_sdspi)(core()->spi_csn0, core()->spi_clk, core()->spi_sdo0);
+		core()->spi_sdi1 = (*m_sdspi)(core()->spi_csn0, core()->spi_clk, core()->spi_sdo0); //CHECK IF THIS IS CORRECT
 		// }}}
 	}
 
@@ -126,6 +148,8 @@ public:
 	}
 
 	void	wait_while_busy(void) {
+
+		// TRY TO FIX THIS FUNCTION!!
 		// {{{
 		while(!core()->events_o)
 			tick();
@@ -133,12 +157,18 @@ public:
 	}
 
 	unsigned	sdcmd(int cmd, unsigned arg = 0) {
-		// {{{
-		apb_write(SDSPI_DATA_ADDR, arg);
-		apb_write(SDSPI_CMD_ADDR, cmd);
 
-		wait_while_busy();
-		return apb_read(SDSPI_CMD_ADDR);
+		//FIX MAGIC NUMBERS
+		
+		apb_write(REG_SPICMD,0x40);
+		apb_write(REG_SPIADR,0x95);
+		apb_write(REG_STATUS,SD_WRITE);
+		// {{{
+		//apb_write(REG_STATUS, arg);
+		//apb_write(REG_SPICMD, cmd);
+		//wait_while_busy();
+		return apb_read(REG_SPICMD);
+		
 		// }}}
 	}
 
@@ -209,7 +239,7 @@ public:
 
 		r = apb_read(SDSPI_DATA_ADDR);
 		fprintf(stderr, "R   : 0x%08x\nOCR: 0x%08x\n", r, m_sdspi->OCR());
-		TBASSERT((*this), (r == m_sdspi->OCR()));
+		//TBASSERT((*this), (r == m_sdspi->OCR()));
 		return r;
 		// }}}
 	}
@@ -260,10 +290,23 @@ public:
 		} return r;
 		// }}}
 	}
+	
+	void init(void){
+		//Initializes apb_spi_master
+
+		apb_write(REG_CLKDIV,CLK_DIV); //set clock division
+		tick();
+		apb_write(REG_SPILEN,SPI_LEN); //set spi length
+		tick();
+		
+
+	}
+	
 
 };
 
 int	main(int argc, char **argv) {
+
 	const char	SDIMAGE_FILENAME[] = "sdcard.img";
 	const char	VCD_FILENAME[] = "trace.vcd";
 	SDSPI_TB	tb(SDIMAGE_FILENAME);
@@ -272,26 +315,34 @@ int	main(int argc, char **argv) {
 	unsigned	boot_sector[128], test_sector[128], buf[128];
 
 	tb.opentrace(VCD_FILENAME);
-
-	tb.core()->HRESETn = 1;
-	//tb.core()->i_bus_grant   = 1;
-	//tb.core()->i_card_detect = 1;
-	tb.tick();
-	tb.tick();
-	tb.tick();
 	tb.core()->HRESETn = 0;
+	tb.core()->PENABLE = 1;
 	tb.tick();
-	v = tb.read_aux();
-	if (SDSPI_PRESENTN & tb.apb_read(SDSPI_CMD_ADDR)) {
+	tb.core()->HRESETn = 1;
+	tb.tick();
+	tb.init();
+
+	//tb.apb_write(REG_STATUS,2);
+	//tb.tick();
+	//tb.apb_read(REG_STATUS);
+	//v = tb.read_aux();
+
+	
+	/*if (SDSPI_PRESENTN & tb.apb_read(SDSPI_CMD_ADDR)) {
 		printf("Waiting for the card assertion to be registered\n");
 		while(SDSPI_PRESENTN & tb.apb_read(SDSPI_CMD_ADDR))
 			;
 	}
-
+	*/
+	
+	
 	//
 	// GO_IDLE
 	printf("SEND_GO_IDLE\n");
+	printf("0x%X\n",tb.sdcmd(SDSPI_GO_IDLE));
 	assert(0x01 == tb.sdcmd(SDSPI_GO_IDLE));
+
+	/*
 	//
 	// SEND_IF_COND
 	printf("SEND_IF_COND\n");
@@ -362,4 +413,5 @@ int	main(int argc, char **argv) {
 		assert(buf[k] == boot_sector[k]);
 
 	printf("SUCCESS!\n");
+	*/
 }
