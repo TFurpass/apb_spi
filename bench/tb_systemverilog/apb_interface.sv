@@ -4,12 +4,11 @@ interface apb_interface #(
     parameter int unsigned ADDR_W = 32'd32,
     parameter int unsigned DATA_W = 32'd32
 ) (
-    input logic clk
 );
 
     logic                      PCLK;
     logic                      PRESETn;
-    logic [APB_ADDR_WIDTH-1:0] PADDR;
+    logic [ADDR_W-1:0] PADDR;
     logic [DATA_W - 1:0]       PWDATA;
     logic                      PWRITE;
     logic                      PSEL;

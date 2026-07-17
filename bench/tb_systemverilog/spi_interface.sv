@@ -7,16 +7,16 @@ interface spi_interface #(
     input logic clk
 );
 
-    logic                   spi_clk,
-    logic                   spi_csn0,
-    logic                   spi_sdo0,
-    logic                   spi_sdi0,
+    logic                   spi_clk;
+    logic                   spi_csn0;
+    logic                   spi_sdo0;
+    logic                   spi_sdi0;
 
     modport SPI_Master (
         input spi_sdi0,
         output spi_clk,
         output spi_csn0,
-        output spi_sdo0,
+        output spi_sdo0
     );
 
     // Note APB_SPI_master has more spi signals but the sd card uses only a few.
@@ -24,7 +24,7 @@ interface spi_interface #(
         input spi_clk,
         input spi_csn0,
         input spi_sdo0,
-        output spi_sdi0, 
+        output spi_sdi0
     );
 
 endinterface
