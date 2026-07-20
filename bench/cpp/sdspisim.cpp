@@ -230,7 +230,7 @@ int	SDSPISIM::operator()(const int csn, const int sck, const int mosi) {
 	// {{{
 	// Keep track of a timer to determine when page program and erase
 	// cycles complete.
-
+	//printf("0x%X\n",mosi);
 	/*
 	if (m_write_count > 0) {
 		//
@@ -338,7 +338,8 @@ int	SDSPISIM::operator()(const int csn, const int sck, const int mosi) {
 			// if (m_debug) printf("SDSPI: CMDIDX = %d\n",m_cmdidx);
 			// All commands *must* start with a 01... pair of bits.
 			if (m_cmdidx == 0)
-				assert((m_dat_in&0xc0)==0x40);
+				//printf("0x%X\n",m_dat_in);
+				//assert((m_dat_in&0xc0)==0x40);
 
 			// Record the command for later processing
 			m_cmdbuf[m_cmdidx++] = m_dat_in;

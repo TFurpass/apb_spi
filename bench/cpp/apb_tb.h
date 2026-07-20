@@ -71,8 +71,6 @@ public:
 		int errcount = 0;
 		unsigned result;
 
-		printf("APB-READ(%08x)\n", a);
-
 		// Setup phase
 		TESTB<VA>::m_core->PADDR   = a;
 		TESTB<VA>::m_core->PWRITE  = 0;
@@ -94,6 +92,7 @@ public:
 		}
 
 		result = TESTB<VA>::m_core->PRDATA;
+		printf("%X\n", result);
 		TICK();
 		//
 		// Release the bus
