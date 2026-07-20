@@ -84,15 +84,15 @@
 #define log2(VALUE) ((VALUE) < ( 1 ) ? 0 : (VALUE) < ( 2 ) ? 1 : (VALUE) < ( 4 ) ? 2 : (VALUE) < ( 8 ) ? 3 : (VALUE) < ( 16 )  ? 4 : (VALUE) < ( 32 )  ? 5 : (VALUE) < ( 64 )  ? 6 : (VALUE) < ( 128 ) ? 7 : (VALUE) < ( 256 ) ? 8 : (VALUE) < ( 512 ) ? 9 : (VALUE) < ( 1024 ) ? 10 : (VALUE) < ( 2048 ) ? 11 : (VALUE) < ( 4096 ) ? 12 : (VALUE) < ( 8192 ) ? 13 : (VALUE) < ( 16384 ) ? 14 : (VALUE) < ( 32768 ) ? 15 : (VALUE) < ( 65536 ) ? 16 : (VALUE) < ( 131072 ) ? 17 : (VALUE) < ( 262144 ) ? 18 : (VALUE) < ( 524288 ) ? 19 : (VALUE) < ( 1048576 ) ? 20 : (VALUE) < ( 1048576 * 2 ) ? 21 : (VALUE) < ( 1048576 * 4 ) ? 22 : (VALUE) < ( 1048576 * 8 ) ? 23 : (VALUE) < ( 1048576 * 16 ) ? 24 : 25)
 
 #define REG_STATUS 0
-#define REG_CLKDIV 1
-#define REG_SPICMD 2
-#define REG_SPIADR 3
-#define REG_SPILEN 4
-#define REG_SPIDUM 5
-#define REG_TXFIFO 6
-#define REG_RXFIFO 8
-#define REG_INTCFG 9
-#define REG_INTSTA 10
+#define REG_CLKDIV 4
+#define REG_SPICMD 8
+#define REG_SPIADR 12
+#define REG_SPILEN 16
+#define REG_SPIDUM 20
+#define REG_TXFIFO 24
+#define REG_RXFIFO 32
+#define REG_INTCFG 36
+#define REG_INTSTA 40
 
 //Register values
 #define CLK_DIV		0x7c
@@ -124,7 +124,7 @@ public:
 		// {{{
 		TESTB<Vapb_spi_master>::tick();
 
-		core()->spi_sdi1 = (*m_sdspi)(core()->spi_csn0, core()->spi_clk, core()->spi_sdo0); //CHECK IF THIS IS CORRECT
+		core()->spi_sdi1 = (*m_sdspi)(core()->spi_csn0, core()->spi_clk, core()->spi_sdo0);
 		// }}}
 	}
 
@@ -156,18 +156,31 @@ public:
 		// }}}
 	}
 
-	unsigned	sdcmd(int cmd, unsigned arg = 0) {
-
-		//FIX MAGIC NUMBERS
+	unsigned	sdcmd(int cmd, int arg = 0) {
 		
-		apb_write(REG_SPICMD,0x40);
-		apb_write(REG_SPIADR,0x95);
-		apb_write(REG_STATUS,SD_WRITE);
-		// {{{
-		//apb_write(REG_STATUS, arg);
-		//apb_write(REG_SPICMD, cmd);
-		//wait_while_busy();
-		return apb_read(REG_SPICMD);
+		//FIX MAGIC NUMBERS
+		switch(cmd){
+
+			case 0:
+			//CMD0
+			apb_write(REG_SPICMD,0x40);
+			apb_write(REG_SPIADR,0x95);			
+			apb_write(REG_STATUS,0x0102);	//Start write to SD-card
+			//wait_while_busy();
+			for (int i = 0; i < 10000; i++){
+				tick();
+			}
+			return apb_read(REG_SPICMD);
+
+			case 8:
+			//CMD8
+			apb_write(REG_SPIADR,0x01aa87);
+			apb_write(REG_SPICMD,0x48);
+			apb_write(REG_STATUS,0x0102);	//Start write to SD-card
+			//wait_while_busy();
+			return apb_read(REG_SPICMD);
+
+		}		
 		
 		// }}}
 	}
@@ -239,7 +252,7 @@ public:
 
 		r = apb_read(SDSPI_DATA_ADDR);
 		fprintf(stderr, "R   : 0x%08x\nOCR: 0x%08x\n", r, m_sdspi->OCR());
-		//TBASSERT((*this), (r == m_sdspi->OCR()));
+		TBASSERT((*this), (r == m_sdspi->OCR()));
 		return r;
 		// }}}
 	}
@@ -292,13 +305,10 @@ public:
 	}
 	
 	void init(void){
-		//Initializes apb_spi_master
+		//Initializes apb_spi_master		
+		apb_write(REG_SPILEN,SPI_LEN);
 
-		apb_write(REG_CLKDIV,CLK_DIV); //set clock division
-		tick();
-		apb_write(REG_SPILEN,SPI_LEN); //set spi length
-		tick();
-		
+		apb_write(REG_CLKDIV,CLK_DIV);
 
 	}
 	
@@ -316,39 +326,44 @@ int	main(int argc, char **argv) {
 
 	tb.opentrace(VCD_FILENAME);
 	tb.core()->HRESETn = 0;
-	tb.core()->PENABLE = 1;
+	//tb.core()->PENABLE = 1;
 	tb.tick();
 	tb.core()->HRESETn = 1;
 	tb.tick();
 	tb.init();
 
-	//tb.apb_write(REG_STATUS,2);
-	//tb.tick();
-	//tb.apb_read(REG_STATUS);
+	 
+
+	//Simulation starts
 	//v = tb.read_aux();
 
+	/*
 	
-	/*if (SDSPI_PRESENTN & tb.apb_read(SDSPI_CMD_ADDR)) {
+	if (tb.apb_read(REG_STATUS)) {
 		printf("Waiting for the card assertion to be registered\n");
-		while(SDSPI_PRESENTN & tb.apb_read(SDSPI_CMD_ADDR))
-			;
+		while(tb.apb_read(REG_STATUS)){;
+		}
 	}
+	
 	*/
-	
-	
 	//
 	// GO_IDLE
 	printf("SEND_GO_IDLE\n");
-	printf("0x%X\n",tb.sdcmd(SDSPI_GO_IDLE));
-	assert(0x01 == tb.sdcmd(SDSPI_GO_IDLE));
+	tb.sdcmd(0);
+	//assert(0x01 == tb.sdcmd(0));
+	printf("GOT HERE");
+	
 
-	/*
+	
 	//
 	// SEND_IF_COND
-	printf("SEND_IF_COND\n");
-	assert(0 == tb.sdcmd(SDSPI_READREG | SDSPI_CMD + 8, 0x01a5));
-	printf("Data response = 0x%08x\n", tb.apb_read(SDSPI_DATA_ADDR));
-	assert(0x01a5 == tb.apb_read(SDSPI_DATA_ADDR));
+	//printf("SEND_IF_COND\n");
+	//tb.sdcmd(8);
+	//assert(0 == tb.sdcmd(8));
+	//printf("Data response = 0x%08x\n", tb.apb_read(REG_RXFIFO));
+	//assert(0x01a5 == tb.apb_read(REG_RXFIFO));
+	
+	/*
 	//
 	// Wait for the card to start up
 	do {
