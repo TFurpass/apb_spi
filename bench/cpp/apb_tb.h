@@ -92,7 +92,7 @@ public:
 		}
 
 		result = TESTB<VA>::m_core->PRDATA;
-		printf("%X\n", result);
+		
 		TICK();
 		//
 		// Release the bus
