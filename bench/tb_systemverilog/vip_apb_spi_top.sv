@@ -26,7 +26,7 @@ module vip_apb_spi #() (
 // );
 
     localparam time clk_cycle = 10ns;
-    localparam longint unsigned SimCycles = 'd5_000;
+    localparam longint unsigned SimCycles = 'd1_000;
     logic clk, rst_n;
 
     clk_rst_gen # (
@@ -82,38 +82,61 @@ module vip_apb_spi #() (
         //TODO vector for address order depending on command
         case(CMD)
             0: begin
+
+                addr = 12'(`TXFIFO_ADDR);
+                data = 32'hA0A0A0A0;
+                i_apb.write(addr, data);  
+
                 addr = 12'(`STATUS_ADDR);
-                data = 32'h0008;
+                data = 32'h0000;
                 $display("[VIP] Writing to (addr: 0x%8H) the value: 0x%8H", addr, data);
                 i_apb.write(addr, data);
+
                 #50ns
                 addr = 12'(`SPILEN_ADDR);
-                data = 32'h10002808;
+                data = 32'h00400008;
                 $display("[VIP] Writing to (addr: 0x%8H) the value: 0x%8H", addr, data);
                 i_apb.write(addr, data );
+
+                addr = 12'(`TXFIFO_ADDR);
+                data = 32'hFFFFFFF0;
+                i_apb.write(addr, data); 
+
                 addr = 12'(`CLKDIV_ADDR);
                 data = 32'h00;
                 $display("[VIP] Writing to (addr: 0x%8H) the value: 0x%8H", addr, data);
                 i_apb.write(addr, data);
+
                   addr = 12'(`STATUS_ADDR);
                 data = 32'h0102;
                 $display("[VIP] Writing to (addr: 0x%8H) the value: 0x%8H", addr, data);
                 i_apb.write(addr, data);
-                addr = 12'(`SPICMD_ADDR);
-                data = 32'h40;
+
+                /* addr = 12'(`SPICMD_ADDR);
+                data = 32'h0;
+                $display("[VIP] Writing to (addr: 0x%8H) the value: 0x%8H", addr, data);
+                i_apb.write(addr, data); */
+
+                /* addr = 12'(`SPIADDR_ADDR);
+                data = 32'hAAAAAAAA;
+                $display("[VIP] Writing to (addr: 0x%8H) the value: 0x%8H", addr, data);
+                i_apb.write(addr,data); */
+                #2000ns;
+                addr = 12'(`STATUS_ADDR);
+                data = 32'h0102;
                 $display("[VIP] Writing to (addr: 0x%8H) the value: 0x%8H", addr, data);
                 i_apb.write(addr, data);
-                addr = 12'(`SPIADDR_ADDR);
-                data = 32'h95;
+                /*  addr = 12'(`TXFIFO_ADDR);
+                data = 32'hA0A0A0A0;
+                i_apb.write(addr, data);  */
+
+             /*    addr = 12'(`STATUS_ADDR);
+                data = 16;
                 $display("[VIP] Writing to (addr: 0x%8H) the value: 0x%8H", addr, data);
-                i_apb.write(addr,data);
-                addr = 12'(`TXFIFO_ADDR);
-                data = 32'h0102;
-                i_apb.write(addr, data);
-                 addr = 12'(`STATUS_ADDR);
-                data = 32'h0102;
-                $display("[VIP] Writing to (addr: 0x%8H) the value: 0x%8H", addr, data);
+                i_apb.write(addr, data); */
                 
+                
+
 
             end
             default: begin
