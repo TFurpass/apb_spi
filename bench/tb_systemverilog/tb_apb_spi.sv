@@ -8,20 +8,26 @@ module tb_apb_spi #() ();
         .ADDR_W(12),
         .DATA_W(32)
     ) apb_bus ();
-/* 
-    spi_interface #(
+
+ /*    spi_interface #(
         .ADDR_W(32),
         .DATA_W(32)
-    ) spi_bus (clk); */
-
+    ) spi_bus (clk);  */
+    logic [31:0] cmd;
+        logic [31:0] addr;
+        logic [31:0] fifo;
     // Unused out & in of DUT
     logic   unused_out, unused_in;
+
+    logic[127:0] mosi_val; 
+    (* keep *)
+    logic [127:0] counter= 0;
     (* keep *)
     logic spi_clk, mosi, miso, csn;
     (* keep *)
-    logic o1,o2,o3 /* verilator public */;
+    logic o1,o2,o3;
     (* keep *)
-    logic i0, i1, i2, i3 /* verilator public */;
+    logic i0, i1, i2, i3;
     // TODO correct bit widths
     logic [8:0] DUT_STATUS_REG; // shows STATUS_REG signals
     logic [7:0] REG_CLKDIV; 
@@ -66,6 +72,7 @@ module tb_apb_spi #() ();
         };
 
     initial begin
+        counter = 0;
         $dumpfile("build/verilator_build/wave.vcd");
         $dumpvars(0, i_dut);
         $display("\n\t###TESTING###");
@@ -75,6 +82,22 @@ module tb_apb_spi #() ();
         i_vip.CMD(0);
         
     end
+    always@(posedge spi_clk) begin
+        if(!csn) begin
+            mosi_val[0] = mosi;
+            mosi_val = mosi_val << 1;
+        end
+
+                counter += 1;
+
+    end
+    always@(posedge csn)begin
+         mosi_val = mosi_val >> 1;
+    end
+       
+    assign cmd = mosi_val[95:64];
+    assign addr = mosi_val[63:32];
+    assign fifo = mosi_val[31:0];
 
     apb_spi_master #() i_dut (
         .HCLK (apb_bus.APB_Slave.PCLK),
@@ -108,9 +131,9 @@ module tb_apb_spi #() ();
     
 
     vip_apb_spi #() i_vip (
-        .apb_mst (apb_bus.APB_Master)
-        /* .spi_mst (unu),
-        .spi_slv (spi_bus.SPI_Slave) */
+        .apb_mst (apb_bus.APB_Master),
+        .cs(csn),
+        .counter (counter)
     );
 
 endmodule : tb_apb_spi
