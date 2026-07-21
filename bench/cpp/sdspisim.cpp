@@ -335,14 +335,21 @@ int	SDSPISIM::operator()(const int csn, const int sck, const int mosi) {
 			// }}}
 		} else if (m_cmdidx < 6) {
 			// {{{
-			// if (m_debug) printf("SDSPI: CMDIDX = %d\n",m_cmdidx);
+			//if (m_debug) printf("SDSPI: CMDIDX = %d\n",m_cmdidx);
 			// All commands *must* start with a 01... pair of bits.
-			if (m_cmdidx == 0)
-				//printf("0x%X\n",m_dat_in);
-				//assert((m_dat_in&0xc0)==0x40);
-
+			if (m_cmdidx == 0){
+				
+				assert((m_dat_in&0xc0)==0x40);
+			}
 			// Record the command for later processing
+			
 			m_cmdbuf[m_cmdidx++] = m_dat_in;
+
+			//debug print to see the buffer
+			//printf("[%02x %02x %02x %02x %02x %02x]\n",m_cmdbuf[0], m_cmdbuf[1],m_cmdbuf[2],m_cmdbuf[3],m_cmdbuf[4],m_cmdbuf[5]);
+			
+						
+			
 			// }}}
 		} else if (m_cmdidx == 6) { // Command processing
 			// {{{

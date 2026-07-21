@@ -83,20 +83,20 @@
 
 #define log2(VALUE) ((VALUE) < ( 1 ) ? 0 : (VALUE) < ( 2 ) ? 1 : (VALUE) < ( 4 ) ? 2 : (VALUE) < ( 8 ) ? 3 : (VALUE) < ( 16 )  ? 4 : (VALUE) < ( 32 )  ? 5 : (VALUE) < ( 64 )  ? 6 : (VALUE) < ( 128 ) ? 7 : (VALUE) < ( 256 ) ? 8 : (VALUE) < ( 512 ) ? 9 : (VALUE) < ( 1024 ) ? 10 : (VALUE) < ( 2048 ) ? 11 : (VALUE) < ( 4096 ) ? 12 : (VALUE) < ( 8192 ) ? 13 : (VALUE) < ( 16384 ) ? 14 : (VALUE) < ( 32768 ) ? 15 : (VALUE) < ( 65536 ) ? 16 : (VALUE) < ( 131072 ) ? 17 : (VALUE) < ( 262144 ) ? 18 : (VALUE) < ( 524288 ) ? 19 : (VALUE) < ( 1048576 ) ? 20 : (VALUE) < ( 1048576 * 2 ) ? 21 : (VALUE) < ( 1048576 * 4 ) ? 22 : (VALUE) < ( 1048576 * 8 ) ? 23 : (VALUE) < ( 1048576 * 16 ) ? 24 : 25)
 
-#define REG_STATUS 0
-#define REG_CLKDIV 4
-#define REG_SPICMD 8
-#define REG_SPIADR 12
-#define REG_SPILEN 16
-#define REG_SPIDUM 20
-#define REG_TXFIFO 24
-#define REG_RXFIFO 32
-#define REG_INTCFG 36
-#define REG_INTSTA 40
+#define REG_STATUS 0x1A102000
+#define REG_CLKDIV 0x1A102004
+#define REG_SPICMD 0x1A102008
+#define REG_SPIADR 0x1A10200c
+#define REG_SPILEN 0x1A102010
+#define REG_SPIDUM 0x1A102014
+#define REG_TXFIFO 0x1A102018
+#define REG_RXFIFO 0x1A102020
+#define REG_INTCFG 0x1A102024
+#define REG_INTSTA 0x1A102028
 
 //Register values
 #define CLK_DIV		0x7c
-#define SPI_LEN		0x10002808
+#define SPI_LEN		0x00802020
 #define	SD_WRITE	0x0102
 #define	SD_READ		0x0101
 
@@ -149,7 +149,6 @@ public:
 
 	void	wait_while_busy(void) {
 
-		// TRY TO FIX THIS FUNCTION!!
 		// {{{
 		while(!core()->events_o)
 			tick();
@@ -163,22 +162,22 @@ public:
 
 			case 0:
 			//CMD0
-			apb_write(REG_SPICMD,0x40);
-			apb_write(REG_SPIADR,0x95);			
-			apb_write(REG_STATUS,0x0102);	//Start write to SD-card
+			apb_write(REG_SPICMD, 0x40000000);
+			apb_write(REG_SPIADR, 0x0095FFFF);
+			apb_write(REG_TXFIFO, 0xFFFFFFFF);
+			apb_write(REG_TXFIFO, 0xFFFFFFFF);
+			apb_write(REG_TXFIFO, 0xFFFFFFFF);
+			apb_write(REG_STATUS, 0x00000102); //Start write to the SD-card
+			
 			//wait_while_busy();
-			for (int i = 0; i < 10000; i++){
+
+			for (int i; i< 100000; i++){
 				tick();
 			}
-			return apb_read(REG_SPICMD);
-
-			case 8:
-			//CMD8
-			apb_write(REG_SPIADR,0x01aa87);
-			apb_write(REG_SPICMD,0x48);
-			apb_write(REG_STATUS,0x0102);	//Start write to SD-card
-			//wait_while_busy();
-			return apb_read(REG_SPICMD);
+			
+			//apb_write(REG_STATUS, 0x00000101); //Start read from the SD-card
+		
+			return apb_read(REG_RXFIFO);
 
 		}		
 		
@@ -307,8 +306,7 @@ public:
 	void init(void){
 		//Initializes apb_spi_master		
 		apb_write(REG_SPILEN,SPI_LEN);
-
-		apb_write(REG_CLKDIV,CLK_DIV);
+		apb_write(REG_CLKDIV,CLK_DIV);		
 
 	}
 	
@@ -326,7 +324,6 @@ int	main(int argc, char **argv) {
 
 	tb.opentrace(VCD_FILENAME);
 	tb.core()->HRESETn = 0;
-	//tb.core()->PENABLE = 1;
 	tb.tick();
 	tb.core()->HRESETn = 1;
 	tb.tick();
@@ -351,7 +348,6 @@ int	main(int argc, char **argv) {
 	printf("SEND_GO_IDLE\n");
 	tb.sdcmd(0);
 	//assert(0x01 == tb.sdcmd(0));
-	printf("GOT HERE");
 	
 
 	
