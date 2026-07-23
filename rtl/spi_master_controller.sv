@@ -28,6 +28,7 @@ module spi_master_controller
     input  logic                   [15:0] spi_dummy_rd,
     input  logic                   [15:0] spi_dummy_wr,
     input  logic                    [3:0] spi_csreg,
+    input  logic                          spi_cs_trail,
     input  logic                          spi_swrst, //FIXME Not used at all
     input  logic                          spi_rd,
     input  logic                          spi_wr,
@@ -213,7 +214,7 @@ module spi_master_controller
         s_spi_mode = `SPI_QUAD_RX;
         if (spi_rd || spi_wr || spi_qrd || spi_qwr)
         begin
-          spi_cs       = 1'b0;
+          spi_cs       = ~spi_cs_trail;
           spi_clock_en = 1'b1;
 
           if (spi_cmd_len != 0)
@@ -290,7 +291,7 @@ module spi_master_controller
       CMD:
       begin
         spi_status[1] = 1'b1;
-        spi_cs = 1'b0;
+        spi_cs = ~spi_cs_trail;
         spi_clock_en = 1'b1;
         s_spi_mode = (en_quad) ? `SPI_QUAD_TX : `SPI_STD;
         if (tx_done)
@@ -364,7 +365,7 @@ module spi_master_controller
       begin
         spi_en_tx     = 1'b1;
         spi_status[2] = 1'b1;
-        spi_cs        = 1'b0;
+        spi_cs        = ~spi_cs_trail;
         spi_clock_en  = 1'b1;
         s_spi_mode    = (en_quad) ? `SPI_QUAD_TX : `SPI_STD;
 
@@ -420,7 +421,7 @@ module spi_master_controller
       MODE:
       begin
         spi_status[3] = 1'b1;
-        spi_cs = 1'b0;
+        spi_cs = ~spi_cs_trail;
         spi_clock_en = 1'b1;
         spi_en_tx        = 1'b1;
       end
@@ -429,7 +430,7 @@ module spi_master_controller
       begin
         spi_en_tx     = 1'b1;
         spi_status[4] = 1'b1;
-        spi_cs        = 1'b0;
+        spi_cs        = ~spi_cs_trail;
         spi_clock_en  = 1'b1;
         s_spi_mode    = (en_quad) ? `SPI_QUAD_RX : `SPI_STD;
 
@@ -467,7 +468,7 @@ module spi_master_controller
       DATA_TX:
       begin
         spi_status[5]    = 1'b1;
-        spi_cs           = 1'b0;
+        spi_cs           = ~spi_cs_trail;
         spi_clock_en     = tx_clk_en;
         ctrl_data_mux    = DATA_FIFO;
         ctrl_data_valid  = 1'b1;
@@ -486,7 +487,7 @@ module spi_master_controller
       DATA_RX:
       begin
         spi_status[6] = 1'b1;
-        spi_cs        = 1'b0;
+        spi_cs        = ~spi_cs_trail;
         spi_clock_en  = rx_clk_en;
         s_spi_mode    = (en_quad) ? `SPI_QUAD_RX : `SPI_STD;
 
@@ -500,7 +501,7 @@ module spi_master_controller
       WAIT_EDGE:
       begin
         spi_status[6] = 1'b1;
-        spi_cs        = 1'b0;
+        spi_cs        = ~spi_cs_trail;
         spi_clock_en  = 1'b0;
         s_spi_mode    = (en_quad) ? `SPI_QUAD_RX : `SPI_STD;
 
