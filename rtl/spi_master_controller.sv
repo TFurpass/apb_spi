@@ -477,8 +477,12 @@ module spi_master_controller
 
         if (tx_done) begin
           eot          = 1'b1;
-          state_next   = IDLE;
-          spi_clock_en = 1'b0;
+          if (do_rx) begin
+            state_next = DATA_RX;
+          end else begin
+            state_next   = IDLE;
+            spi_clock_en = 1'b0;
+          end
         end else begin
           state_next = DATA_TX;
         end
@@ -492,7 +496,12 @@ module spi_master_controller
         s_spi_mode    = (en_quad) ? `SPI_QUAD_RX : `SPI_STD;
 
         if (rx_done) begin
-          state_next = WAIT_EDGE;
+
+          if (do_tx) begin
+            state_next = DATA_TX;
+          end else begin
+            state_next = WAIT_EDGE;
+          end
         end else begin
           spi_en_rx  = 1'b1;
           state_next = DATA_RX;
