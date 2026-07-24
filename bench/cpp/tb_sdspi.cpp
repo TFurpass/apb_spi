@@ -59,7 +59,7 @@
 #define	SDSPI_FIFO_A	2
 #define	SDSPI_FIFO_B	3
 
-#define	READAUX	0x80 //CHECK IF THESE ARE CORRECT
+#define	READAUX	0x80
 #define	SETAUX	0xc0
 
 #define	SDSPI_CMD			0x000040
@@ -75,7 +75,7 @@
 #define	SDSPI_PRESENTN		0x080000
 #define	SDSPI_RESET			0x100000
 #define	SDSPI_WATCHDOG		0x200000
-#define	SDSPI_GO_IDLE		((SDSPI_REMOVED|SDSPI_CLEARERR|SDSPI_CMD)+0) //CHECK THESE!
+#define	SDSPI_GO_IDLE		((SDSPI_REMOVED|SDSPI_CLEARERR|SDSPI_CMD)+0)
 #define	SDSPI_READ_SECTOR	((SDSPI_CMD|SDSPI_CLEARERR|SDSPI_FIFO_OP)+17)
 #define	SDSPI_WRITE_SECTOR	((SDSPI_CMD|SDSPI_CLEARERR|SDSPI_WRITEOP)+24)
 
@@ -96,7 +96,7 @@
 
 //Register values
 #define CLK_DIV		0x7c
-#define SPI_LEN		0x00802020
+#define SPI_LEN		0x01002020 //set spiadr and spicmd length to 0 when using only FIFOs
 #define	SD_WRITE	0x0102
 #define	SD_READ		0x0101
 
@@ -155,33 +155,141 @@ public:
 		// }}}
 	}
 
+
 	unsigned	sdcmd(int cmd, int arg = 0) {
 		
 		//FIX MAGIC NUMBERS
+		int timeout = 0;
 		switch(cmd){
 
 			case 0:
-			//CMD0
-			apb_write(REG_SPICMD, 0x40000000);
-			apb_write(REG_SPIADR, 0x0095FFFF);
-			apb_write(REG_TXFIFO, 0xFFFFFFFF);
-			apb_write(REG_TXFIFO, 0xFFFFFFFF);
-			apb_write(REG_TXFIFO, 0xFFFFFFFF);
-			apb_write(REG_STATUS, 0x00000102); //Start write to the SD-card
-			
-			//wait_while_busy();
+				//CMD0
+				apb_write(REG_SPICMD, 0x40000000); //CHANGE TO TXFIFO! -> CHANGE DUT FIRST
+				apb_write(REG_SPIADR, 0x00950000); //CHANGE TO TXFIFO!
+				apb_write(REG_STATUS, 0x00000101); //Start read from the SD-card
 
-			for (int i; i< 100000; i++){
-				tick();
-			}
-			
-			//apb_write(REG_STATUS, 0x00000101); //Start read from the SD-card
-		
-			return apb_read(REG_RXFIFO);
+				while(timeout < 1000){
 
-		}		
-		
-		// }}}
+					// IMPLEMENT READ RESPONSE
+					tick();
+					timeout++;
+
+				}
+				break;
+
+			case 8:
+				//CMD8
+				apb_write(REG_SPICMD, 0x48000001); //CHANGE TO TXFIFO! -> CHANGE DUT FIRST
+				apb_write(REG_SPIADR, 0xAA870000); //CHANGE TO TXFIFO!
+				apb_write(REG_STATUS, 0x00000101); //Start read from the SD-card
+
+				while(timeout < 1000){
+
+					// IMPLEMENT READ RESPONSE
+					tick();
+					timeout++;
+
+				}
+				break;
+
+			case 55:
+				//CMD55
+				apb_write(REG_SPICMD, 0x77000000); //CHANGE TO TXFIFO! -> CHANGE DUT FIRST
+				apb_write(REG_SPIADR, 0x00650000); //CHANGE TO TXFIFO!
+				apb_write(REG_STATUS, 0x00000101); //Start read from the SD-card
+
+				while(timeout < 1000){
+
+					// IMPLEMENT READ RESPONSE
+					tick();
+					timeout++;
+
+				}
+				break;
+
+
+			case 41:
+				//ACMD41 Not implemented in SD-card model!
+				apb_write(REG_SPICMD, 0x69400000); //CHANGE TO TXFIFO! -> CHANGE DUT FIRST
+				apb_write(REG_SPIADR, 0x00770000); //CHANGE TO TXFIFO!
+				apb_write(REG_STATUS, 0x00000101); //Start read from the SD-card
+
+				while(timeout < 1000){
+
+					// IMPLEMENT READ RESPONSE
+					tick();
+					timeout++;
+
+				}
+				break;
+
+
+			case 58:
+				//CMD58
+				apb_write(REG_SPICMD, 0x7A000000); //CHANGE TO TXFIFO! -> CHANGE DUT FIRST
+				apb_write(REG_SPIADR, 0x00FD0000); //CHANGE TO TXFIFO!
+				apb_write(REG_STATUS, 0x00000101); //Start read from the SD-card
+
+				while(timeout < 1000){
+
+					// IMPLEMENT READ RESPONSE
+					tick();
+					timeout++;
+
+				}
+				break;
+
+
+			case 16:
+				//CMD16 not implemented in SD-card model!
+				apb_write(REG_SPICMD, 0x50000002); //CHANGE TO TXFIFO! -> CHANGE DUT FIRST
+				apb_write(REG_SPIADR, 0x00150000); //CHANGE TO TXFIFO!
+				apb_write(REG_STATUS, 0x00000101); //Start read from the SD-card
+
+				while(timeout < 1000){
+
+					// IMPLEMENT READ RESPONSE
+					tick();
+					timeout++;
+
+				}
+				break;
+
+
+			case 17:
+				//CMD17
+				apb_write(REG_SPICMD, 0x51000000); //CHANGE TO TXFIFO! -> CHANGE DUT FIRST
+				apb_write(REG_SPIADR, 0x00550000); //CHANGE TO TXFIFO!
+				apb_write(REG_STATUS, 0x00000101); //Start read from the SD-card
+
+				while(timeout < 1000){
+
+					// IMPLEMENT READ RESPONSE
+					tick();
+					timeout++;
+
+				}
+				break;
+
+			case 24:
+				//CMD24
+				apb_write(REG_SPICMD, 0x58000000); //CHANGE TO TXFIFO! -> CHANGE DUT FIRST
+				apb_write(REG_SPIADR, 0x006f0000); //CHANGE TO TXFIFO!
+				apb_write(REG_STATUS, 0x00000101); //Start read from the SD-card
+
+				while(timeout < 1000){
+
+					// IMPLEMENT READ RESPONSE
+					tick();
+					timeout++;
+
+				}
+				break;
+
+			//Implement CMD59 which sets the CRC_ON_OFF
+
+
+		}
 	}
 
 	unsigned	read(int cmd, unsigned arg, int ln, unsigned *data) {
@@ -304,6 +412,7 @@ public:
 	}
 	
 	void init(void){
+
 		//Initializes apb_spi_master		
 		apb_write(REG_SPILEN,SPI_LEN);
 		apb_write(REG_CLKDIV,CLK_DIV);		
@@ -329,7 +438,7 @@ int	main(int argc, char **argv) {
 	tb.tick();
 	tb.init();
 
-	 
+	//ADD START MOSI ACTION
 
 	//Simulation starts
 	//v = tb.read_aux();
@@ -345,19 +454,18 @@ int	main(int argc, char **argv) {
 	*/
 	//
 	// GO_IDLE
-	printf("SEND_GO_IDLE\n");
-	tb.sdcmd(0);
+	//printf("SEND_GO_IDLE\n");
 	//assert(0x01 == tb.sdcmd(0));
-	
 
-	
-	//
-	// SEND_IF_COND
+
+	//SEND_IF_COND
 	//printf("SEND_IF_COND\n");
-	//tb.sdcmd(8);
-	//assert(0 == tb.sdcmd(8));
-	//printf("Data response = 0x%08x\n", tb.apb_read(REG_RXFIFO));
-	//assert(0x01a5 == tb.apb_read(REG_RXFIFO));
+	//assert(0x01a5 == tb.sdcmd(8));
+
+
+	//COMMAND TESTING
+	tb.sdcmd(55);
+
 	
 	/*
 	//
@@ -424,5 +532,5 @@ int	main(int argc, char **argv) {
 		assert(buf[k] == boot_sector[k]);
 
 	printf("SUCCESS!\n");
-	*/
-}
+*/
+};
