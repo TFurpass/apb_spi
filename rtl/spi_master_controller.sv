@@ -29,7 +29,7 @@ module spi_master_controller
     input  logic                   [15:0] spi_dummy_wr,
     input  logic                    [3:0] spi_csreg,
     input  logic                          spi_cs_trail,
-    input  logic                          spi_swrst, //FIXME Not used at all
+    input  logic                          spi_swrst, // effictively a synchonous reset of controller
     input  logic                          spi_rd,
     input  logic                          spi_wr,
     input  logic                          spi_qrd,
@@ -86,13 +86,14 @@ module spi_master_controller
   logic ctrl_data_valid;
 
   logic spi_cs;
+  logic cs_trail_d, cs_trail_q;
 
   logic tx_clk_en;
   logic rx_clk_en;
 
   enum logic [2:0] {DATA_NULL,DATA_EMPTY,DATA_CMD,DATA_ADDR,DATA_FIFO} ctrl_data_mux;
 
-  enum logic [4:0] {IDLE,CMD,ADDR,MODE,DUMMY,DATA_TX,DATA_RX,WAIT_EDGE} state,state_next;
+  enum logic [4:0] {IDLE,CMD,ADDR,DUMMY,DATA_TX,DATA_RX,WAIT_EDGE} state,state_next;
 
   assign en_quad = spi_qrd | spi_qwr | en_quad_int;
 
@@ -193,7 +194,7 @@ module spi_master_controller
 
   always_comb
   begin
-    spi_cs           = 1'b1;
+    spi_cs           = ~cs_trail_q;
     spi_clock_en     = 1'b0;
     counter_tx       =  '0;
     counter_tx_valid = 1'b0;
@@ -207,15 +208,18 @@ module spi_master_controller
     spi_status       =  '0;
     s_spi_mode       = `SPI_QUAD_RX;
     eot              = 1'b0;
+    cs_trail_d       = cs_trail_q;
+
     case(state)
       IDLE:
       begin
         spi_status[0] = 1'b1;
-        s_spi_mode = `SPI_QUAD_RX;
-        if (spi_rd || spi_wr || spi_qrd || spi_qwr)
+        if ((spi_rd || spi_wr || spi_qrd || spi_qwr) && ~spi_swrst)
         begin
-          spi_cs       = ~spi_cs_trail;
+          spi_cs       = 1'b0;
           spi_clock_en = 1'b1;
+          // latch chip select trail state upon receipt of new command
+          cs_trail_d   = spi_cs_trail;
 
           if (spi_cmd_len != 0)
           begin
@@ -280,18 +284,13 @@ module spi_master_controller
               end
             end
           end
-        end
-        else
-        begin
-          spi_cs = 1'b1;
-          state_next = IDLE;
-        end
+        end        
       end
 
       CMD:
       begin
         spi_status[1] = 1'b1;
-        spi_cs = ~spi_cs_trail;
+        spi_cs = 1'b0;
         spi_clock_en = 1'b1;
         s_spi_mode = (en_quad) ? `SPI_QUAD_TX : `SPI_STD;
         if (tx_done)
@@ -365,7 +364,7 @@ module spi_master_controller
       begin
         spi_en_tx     = 1'b1;
         spi_status[2] = 1'b1;
-        spi_cs        = ~spi_cs_trail;
+        spi_cs        = 1'b0;
         spi_clock_en  = 1'b1;
         s_spi_mode    = (en_quad) ? `SPI_QUAD_TX : `SPI_STD;
 
@@ -418,19 +417,11 @@ module spi_master_controller
         end
       end
 
-      MODE:
-      begin
-        spi_status[3] = 1'b1;
-        spi_cs = ~spi_cs_trail;
-        spi_clock_en = 1'b1;
-        spi_en_tx        = 1'b1;
-      end
-
       DUMMY:
       begin
         spi_en_tx     = 1'b1;
         spi_status[4] = 1'b1;
-        spi_cs        = ~spi_cs_trail;
+        spi_cs        = 1'b0;
         spi_clock_en  = 1'b1;
         s_spi_mode    = (en_quad) ? `SPI_QUAD_RX : `SPI_STD;
 
@@ -468,7 +459,7 @@ module spi_master_controller
       DATA_TX:
       begin
         spi_status[5]    = 1'b1;
-        spi_cs           = ~spi_cs_trail;
+        spi_cs           = 1'b0;
         spi_clock_en     = tx_clk_en;
         ctrl_data_mux    = DATA_FIFO;
         ctrl_data_valid  = 1'b1;
@@ -477,12 +468,8 @@ module spi_master_controller
 
         if (tx_done) begin
           eot          = 1'b1;
-          if (do_rx) begin
-            state_next = DATA_RX;
-          end else begin
-            state_next   = IDLE;
-            spi_clock_en = 1'b0;
-          end
+          state_next   = IDLE;
+          spi_clock_en = 1'b0;
         end else begin
           state_next = DATA_TX;
         end
@@ -491,17 +478,12 @@ module spi_master_controller
       DATA_RX:
       begin
         spi_status[6] = 1'b1;
-        spi_cs        = ~spi_cs_trail;
+        spi_cs        = 1'b0;
         spi_clock_en  = rx_clk_en;
         s_spi_mode    = (en_quad) ? `SPI_QUAD_RX : `SPI_STD;
 
         if (rx_done) begin
-
-          if (do_tx) begin
-            state_next = DATA_TX;
-          end else begin
-            state_next = WAIT_EDGE;
-          end
+          state_next = WAIT_EDGE;
         end else begin
           spi_en_rx  = 1'b1;
           state_next = DATA_RX;
@@ -510,7 +492,7 @@ module spi_master_controller
       WAIT_EDGE:
       begin
         spi_status[6] = 1'b1;
-        spi_cs        = ~spi_cs_trail;
+        spi_cs        = 1'b0;
         spi_clock_en  = 1'b0;
         s_spi_mode    = (en_quad) ? `SPI_QUAD_RX : `SPI_STD;
 
@@ -522,6 +504,12 @@ module spi_master_controller
         end
       end
     endcase
+
+    // software reset should halt current operations and return FSM to idle
+    if (spi_swrst) begin
+      state_next = IDLE;
+    end
+
   end
 
 
@@ -534,30 +522,45 @@ module spi_master_controller
       do_rx       <= 1'b0;
       do_tx       <= 1'b0;
       spi_mode    <= `SPI_QUAD_RX;
+      cs_trail_q  <= 1'b0;
     end
     else
     begin
-      state <= state_next;
-      spi_mode <= s_spi_mode;
-      if (spi_qrd || spi_qwr)
-        en_quad_int <= 1'b1;
-      else if (state_next == IDLE)
-        en_quad_int <= 1'b0;
 
-      if (spi_rd || spi_qrd)
-      begin
-        do_rx <= 1'b1;
-        do_tx <= 1'b0;
-      end
-      else if (spi_wr || spi_qwr)
-      begin
-        do_rx <= 1'b0;
-        do_tx <= 1'b1;
-      end
-      else if (state_next == IDLE)
-      begin
-        do_rx <= 1'b0;
-        do_tx <= 1'b0;
+      state    <= state_next;      
+
+      // sw reset acts like a synchronous reset
+      // note: do not need to assign tx_do/rx_do as this will be handled by
+      // next state being set to IDLE in FSM above
+      if (spi_swrst) begin
+        cs_trail_q  <= 1'b0;
+        en_quad_int <= 1'b0;
+        spi_mode    <= `SPI_QUAD_RX;
+      end else begin
+
+        spi_mode <= s_spi_mode;
+        cs_trail_q <= cs_trail_d;
+  
+        if (spi_qrd || spi_qwr)
+          en_quad_int <= 1'b1;
+        else if (state_next == IDLE)
+          en_quad_int <= 1'b0;
+  
+        if (spi_rd || spi_qrd)
+        begin
+          do_rx <= 1'b1;
+          do_tx <= 1'b0;
+        end
+        else if (spi_wr || spi_qwr)
+        begin
+          do_rx <= 1'b0;
+          do_tx <= 1'b1;
+        end
+        else if (state_next == IDLE)
+        begin
+          do_rx <= 1'b0;
+          do_tx <= 1'b0;
+        end
       end
     end
   end
