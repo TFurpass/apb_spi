@@ -84,7 +84,7 @@ public:
 	void	load(const char *fname);
 	void	debug(const bool dbg) { m_debug = dbg; }
 	bool	debug(void) const { return m_debug; }
-	int	operator()(const int csn, const int sck, const int dat);
+	int	operator()(const int csn, const int sck, const int dat, const int out_en);
 	unsigned cmdcrc(int ln, char *buf) const;
 	bool	check_cmdcrc(char *buf) const;
 	unsigned blockcrc(int ln, char *buf) const;

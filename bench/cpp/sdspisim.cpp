@@ -226,7 +226,7 @@ uint8_t	SDSPISIM::CID(int index) {
 }
 // }}}
 
-int	SDSPISIM::operator()(const int csn, const int sck, const int mosi) {
+int	SDSPISIM::operator()(const int csn, const int sck, const int mosi, const int out_en) {
 	// {{{
 	// Keep track of a timer to determine when page program and erase
 	// cycles complete.
@@ -264,7 +264,12 @@ int	SDSPISIM::operator()(const int csn, const int sck, const int mosi) {
 	} else if (!m_last_sck) {
 		// {{{
 		// Register our input on the rising edge
-		m_mosi = mosi;
+		if (out_en) {
+		  m_mosi = 1; 
+		} else {
+		  m_mosi = mosi;
+		}
+
 		m_syncd= true;
 		m_last_sck = sck;
 		return m_last_miso;

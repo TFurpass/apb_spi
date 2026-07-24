@@ -124,7 +124,7 @@ public:
 		// {{{
 		TESTB<Vapb_spi_master>::tick();
 
-		core()->spi_sdi1 = (*m_sdspi)(core()->spi_csn0, core()->spi_clk, core()->spi_sdo0);
+		core()->spi_sdi1 = (*m_sdspi)(core()->spi_csn0, core()->spi_clk, core()->spi_sdo0, core()->out_en);
 		// }}}
 	}
 
@@ -464,7 +464,7 @@ int	main(int argc, char **argv) {
 
 
 	//COMMAND TESTING
-	tb.sdcmd(55);
+	tb.sdcmd(0);
 
 	
 	/*
