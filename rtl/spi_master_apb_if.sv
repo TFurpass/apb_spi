@@ -122,13 +122,13 @@ module spi_master_apb_if
 
                   `REG_STATUS:
                   begin
-                      spi_rd    <= PWDATA[0];
-                      spi_wr    <= PWDATA[1];
-                      spi_qrd   <= PWDATA[2];
-                      spi_qwr   <= PWDATA[3];
-                      spi_swrst <= PWDATA[4];
+                      spi_rd       <= PWDATA[0];
+                      spi_wr       <= PWDATA[1];
+                      spi_qrd      <= PWDATA[2];
+                      spi_qwr      <= PWDATA[3];
+                      spi_swrst    <= PWDATA[4];
                       spi_cs_trail <= PWDATA[5];
-                      spi_csreg <= PWDATA[11:8];
+                      spi_csreg    <= PWDATA[11:8];
                   end
 
                   `REG_CLKDIV:
