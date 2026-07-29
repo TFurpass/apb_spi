@@ -1,5 +1,5 @@
 module out_enable #() (
-    input rst_n,
+    input logic rst_n,
     input logic sclk,
     input logic chip_select,
     input logic mosi_i,

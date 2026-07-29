@@ -64,7 +64,26 @@ module vip_apb_spi #() (
     endtask
 
     task automatic init();
-        
+        addr = 12'(`CLKDIV_ADDR);
+        data = 32'h1F4;
+        $display("[VIP] Writing to CLKDIV (addr: 0x%8H) the value: 0x%8H", addr, data);
+        i_apb.write(addr, data);
+
+         addr = 12'(`SPILEN_ADDR);
+        data = 32'h00500000;
+        $display("[VIP] Writing to SPILEN (addr: 0x%8H) the value: 0x%8H", addr, data);
+        i_apb.write(addr, data );
+
+        for(integer i = 0; i< 3;i++) begin
+            addr = 12'(`TXFIFO_ADDR);
+            data = 32'hFFFFFFFF;
+            i_apb.write(addr, data);    
+        end
+
+        addr = 12'(`STATUS_ADDR);
+        data = 32'h0002;
+        $display("[VIP] Writing to STATUS (addr: 0x%8H) the value: 0x%8H, APB WRITE", addr, data);
+        i_apb.write(addr, data);
     endtask
 
     // TODO display all register info, since some are write only.
