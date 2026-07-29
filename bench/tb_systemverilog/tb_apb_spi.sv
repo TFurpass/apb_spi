@@ -8,11 +8,7 @@ module tb_apb_spi #() ();
         .ADDR_W(12),
         .DATA_W(32)
     ) apb_bus ();
-
- /*    spi_interface #(
-        .ADDR_W(32),
-        .DATA_W(32)
-    ) spi_bus (clk);  */
+ 
     logic [31:0] cmd;
         logic [31:0] addr;
         logic [31:0] fifo;
@@ -100,7 +96,7 @@ module tb_apb_spi #() ();
     assign fifo = mosi_val[31:0];
 
     apb_spi_master #() i_dut (
-        .HCLK (apb_bus.APB_Slave.PCLK),
+        .HCLK (apb_bus.PCLK),
         .HRESETn (apb_bus.PRESETn),
         .PADDR (apb_bus.PADDR),
         .PWDATA (apb_bus.PWDATA),
@@ -134,6 +130,13 @@ module tb_apb_spi #() ();
         .apb_mst (apb_bus.APB_Master),
         .cs(csn),
         .counter (counter)
+    );
+
+     vip_sd_card #() i_sd_card (
+        .mosi (mosi),
+        .cs (csn),
+        .sclk (spi_clk),
+        .miso (miso)
     );
 
 endmodule : tb_apb_spi
