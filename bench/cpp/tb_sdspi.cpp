@@ -96,9 +96,6 @@
 
 //Register values
 #define CLK_DIV		0x7c
-#define SPI_LEN		0x01002020 //set spiadr and spicmd length to 0 when using only FIFOs
-#define	SD_WRITE	0x0102
-#define	SD_READ		0x0101
 
 class	SDSPI_TB : public apb_TB<Vapb_spi_master> {
 	SDSPISIM	*m_sdspi;
@@ -156,40 +153,82 @@ public:
 	}
 
 
+	void wait_for_idle(void){
+
+		while ((apb_read(REG_STATUS)& 0x1) == 0)
+			;
+
+	}
+
 	unsigned	sdcmd(int cmd, int arg = 0) {
+
+		bool first_byte = false;
+		bool second_byte = false;
+
+		unsigned rx = 0;
 		
-		//FIX MAGIC NUMBERS
-		int timeout = 0;
+		//FIX MAGIC NUMBER
 		switch(cmd){
 
 			case 0:
 				//CMD0
-				apb_write(REG_SPICMD, 0x40000000); //CHANGE TO TXFIFO! -> CHANGE DUT FIRST
-				apb_write(REG_SPIADR, 0x00950000); //CHANGE TO TXFIFO!
-				apb_write(REG_STATUS, 0x00000101); //Start read from the SD-card
+				apb_write(REG_SPILEN, 0x00300000);
+				apb_write(REG_TXFIFO, 0x40000000);
+				apb_write(REG_TXFIFO, 0x00950000);
+				apb_write(REG_STATUS, 0x00000122); //Start write to the SD-card
 
-				while(timeout < 1000){
+				//Waiting for TX
+				wait_for_idle();
 
-					// IMPLEMENT READ RESPONSE
-					tick();
-					timeout++;
+				apb_write(REG_SPILEN, 0x00600000);
 
+				apb_write(REG_STATUS, 0x00000121); //Start read from the SD-card
+
+				rx = apb_read(REG_RXFIFO);
+
+				//CATCH 0x01 from the bitstream
+				if (rx == 0xFFFF01FF){
+					wait_for_idle();
+					apb_write(REG_STATUS, 0); //CSn toggle
+					return 0x01;
 				}
+
 				break;
+
 
 			case 8:
 				//CMD8
-				apb_write(REG_SPICMD, 0x48000001); //CHANGE TO TXFIFO! -> CHANGE DUT FIRST
-				apb_write(REG_SPIADR, 0xAA870000); //CHANGE TO TXFIFO!
-				apb_write(REG_STATUS, 0x00000101); //Start read from the SD-card
+				apb_write(REG_SPILEN, 0x00300000);
+				apb_write(REG_TXFIFO, 0x48000001);
+				apb_write(REG_TXFIFO, 0xAA870000);
+				apb_write(REG_STATUS, 0x00000122); //Start write to the SD-card
 
-				while(timeout < 1000){
 
-					// IMPLEMENT READ RESPONSE
-					tick();
-					timeout++;
+				//Waiting for TX
+				wait_for_idle();
 
+				apb_write(REG_SPILEN, 0x00600000);
+
+				apb_write(REG_STATUS, 0x00000121); //Start read from the SD-card
+
+				rx = apb_read(REG_RXFIFO);
+
+				//CATCH 0x01AA from the bitstream
+
+				if (rx == 0xFFFF0000){
+					first_byte = true;
 				}
+
+				if (rx == 0x0001AAFF){
+					second_byte = true;
+				}
+
+				if (first_byte && second_byte){
+					wait_for_idle();
+					apb_write(REG_STATUS, 0); //CSn toggle
+					return 0x01AA;
+				}
+
 				break;
 
 			case 55:
@@ -198,11 +237,11 @@ public:
 				apb_write(REG_SPIADR, 0x00650000); //CHANGE TO TXFIFO!
 				apb_write(REG_STATUS, 0x00000101); //Start read from the SD-card
 
-				while(timeout < 1000){
+				while(1){
 
 					// IMPLEMENT READ RESPONSE
 					tick();
-					timeout++;
+
 
 				}
 				break;
@@ -214,11 +253,11 @@ public:
 				apb_write(REG_SPIADR, 0x00770000); //CHANGE TO TXFIFO!
 				apb_write(REG_STATUS, 0x00000101); //Start read from the SD-card
 
-				while(timeout < 1000){
+				while(1){
 
 					// IMPLEMENT READ RESPONSE
 					tick();
-					timeout++;
+
 
 				}
 				break;
@@ -230,11 +269,11 @@ public:
 				apb_write(REG_SPIADR, 0x00FD0000); //CHANGE TO TXFIFO!
 				apb_write(REG_STATUS, 0x00000101); //Start read from the SD-card
 
-				while(timeout < 1000){
+				while(1){
 
 					// IMPLEMENT READ RESPONSE
 					tick();
-					timeout++;
+
 
 				}
 				break;
@@ -246,11 +285,11 @@ public:
 				apb_write(REG_SPIADR, 0x00150000); //CHANGE TO TXFIFO!
 				apb_write(REG_STATUS, 0x00000101); //Start read from the SD-card
 
-				while(timeout < 1000){
+				while(1){
 
 					// IMPLEMENT READ RESPONSE
 					tick();
-					timeout++;
+
 
 				}
 				break;
@@ -262,11 +301,11 @@ public:
 				apb_write(REG_SPIADR, 0x00550000); //CHANGE TO TXFIFO!
 				apb_write(REG_STATUS, 0x00000101); //Start read from the SD-card
 
-				while(timeout < 1000){
+				while(1){
 
 					// IMPLEMENT READ RESPONSE
 					tick();
-					timeout++;
+
 
 				}
 				break;
@@ -277,11 +316,11 @@ public:
 				apb_write(REG_SPIADR, 0x006f0000); //CHANGE TO TXFIFO!
 				apb_write(REG_STATUS, 0x00000101); //Start read from the SD-card
 
-				while(timeout < 1000){
+				while(1){
 
 					// IMPLEMENT READ RESPONSE
 					tick();
-					timeout++;
+
 
 				}
 				break;
@@ -414,8 +453,7 @@ public:
 	void init(void){
 
 		//Initializes apb_spi_master		
-		apb_write(REG_SPILEN,SPI_LEN);
-		apb_write(REG_CLKDIV,CLK_DIV);		
+		apb_write(REG_CLKDIV,CLK_DIV);
 
 	}
 	
@@ -454,17 +492,12 @@ int	main(int argc, char **argv) {
 	*/
 	//
 	// GO_IDLE
-	//printf("SEND_GO_IDLE\n");
-	//assert(0x01 == tb.sdcmd(0));
-
+	printf("SEND_GO_IDLE\n");
+	assert(0x01 == tb.sdcmd(0));
 
 	//SEND_IF_COND
-	//printf("SEND_IF_COND\n");
-	//assert(0x01a5 == tb.sdcmd(8));
-
-
-	//COMMAND TESTING
-	tb.sdcmd(55);
+	printf("SEND_IF_COND\n");
+	assert(0x01AA == tb.sdcmd(8));
 
 	
 	/*
