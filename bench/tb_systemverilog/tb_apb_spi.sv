@@ -20,10 +20,12 @@ module tb_apb_spi #() ();
     logic [127:0] counter= 0;
     (* keep *)
     logic spi_clk, mosi, miso, csn;
+    logic DUT_sd_out;
     (* keep *)
     logic o1,o2,o3;
     (* keep *)
     logic i0, i1, i2, i3;
+
     // TODO correct bit widths
     logic [8:0] DUT_STATUS_REG; // shows STATUS_REG signals
     logic [7:0] REG_CLKDIV; 
@@ -73,11 +75,17 @@ module tb_apb_spi #() ();
         $dumpvars(0, i_dut);
         $display("\n\t###TESTING###");
         #500ns;
-        //i_vip.test_APB_REG_write_read(12'b0000, 32'b1000, 1);
-        $display("\n\t###TESTING CMD0###");
-        i_vip.CMD(0);
+        i_vip.init();
+        i_vip.sd_powerup();
+
+        fork
+            i_vip.CMD(0);
+            i_sd_card.miso_generate();
+            i_sd_card.basic();
+        join
         
     end
+    
     always@(posedge spi_clk) begin
         if(!csn) begin
             mosi_val[0] = mosi;
@@ -115,7 +123,7 @@ module tb_apb_spi #() ();
         .spi_csn2(),
         .spi_csn3(),
         .spi_mode(),
-        .spi_sdo0(mosi), // connect to SPI SD-Card
+        .spi_sdo0(DUT_sd_out), // connect to SPI SD-Card
         .spi_sdo1(o1),
         .spi_sdo2(o2),
         .spi_sdo3(o3),
@@ -138,5 +146,14 @@ module tb_apb_spi #() ();
         .sclk (spi_clk),
         .miso (miso)
     );
+
+    out_enable #() i_out_en (
+        .rst_n (rstn),
+        .sclk (spi_clk),
+        .mosi_i (DUT_sd_out),
+        .mosi_o (mosi),
+        .chip_select (csn)
+    )
+
 
 endmodule : tb_apb_spi
