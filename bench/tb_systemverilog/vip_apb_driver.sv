@@ -56,13 +56,12 @@ module vip_apb_driver #(
         @(posedge clk);
         #TT;
       end
-
+      apb_mst.PENABLE = #TA 1'b0;
       @(posedge clk);
       apb_mst.PADDR   = #TA '0;
       apb_mst.PWDATA  = #TA '0;
       apb_mst.PWRITE  = #TA 1'b0;
       apb_mst.PSEL    = #TA 1'b0;
-      apb_mst.PENABLE = #TA 1'b0;
 
     endtask
 
