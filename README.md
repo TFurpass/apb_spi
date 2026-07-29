@@ -2,37 +2,60 @@
 
 # SPI controller input/config for SD-card communication
 
-BASEADDR DEFAULT = 0x0000 0000  
+BASEADDR DEFAULT = 0x0000 0000 Can be changed to what ever value, APB_SPI_CONTROLLER registers memory mapped:
 
-**Needs testing how the spi_master sends the txfifo data and how it receives rxfifo data to determine if spicmd and spiaddr should be used to transmit the whole sd card cmd and its additional fields or whether they should act as the start bit & transaction bit. Fifo could be configured to 8 bit data packets for init and commands and then to 512kB for data reads. Yet to be determined how to approach this.** 
-
-**Current approach is to use spicmd and spiaddr for commands + additional fields and fifo for dummy cycles during init phase to receive responses (needed since spidummy sends zeros not ones and sd-card emulator needs ones), FIFO should be configured with SPILEN differently after init**
+| REGISTER   | ADDR           |
+| ---------- | -------------- |
+| REG_STATUS | BASEREG + 0x00 |
+| REG_CLKDIV | BASEREG + 0x04 |
+| REG_SPICMD | BASEREG + 0x08 |
+| REG_SPIADR | BASEREG + 0x0C |
+| REG_SPILEN | BASEREG + 0x10 |
+| REG_SPIDUM | BASEREG + 0x14 |
+| REG_TXFIFO | BASEREG + 0x18 |
+| REG_RXFIFO | BASEREG + 0x20 |
+| REG_INTCFG | BASEREG + 0x24 |
+| REG_INTSTA | BASEREG + 0x28 |
 
 | COMMAND | Purpose                                                      | Dataline (MOSI)   | Response + info                                     |
 | ------- | ------------------------------------------------------------ | ----------------- | --------------------------------------------------- |
 | CMD0    | Reset card and request SPI mode                              | 40 00 00 00 00 95 | R1 = 0x01 idle state entered                        |
 | CMD8    | Check voltage range and card generation                      | 48 00 00 01 AA 87 | R7 echo ending in 0x01AA for SDv2+                  |
-| CMD55   | Prefix next command as application-specific                  | 77 00 00 00 00 01 | R1 = 0x01 while still idle                          |
-| ACMD41  | init command: send same command & check response until ready | 69 40 00 00 00 01 | 0x01 busy, when 0x00 it is ready                    |
-| CMD58   | Read OCR and card capacity status                            | 7A 00 00 00 00 01 | R3; use CCS to distinguish SDSC from SDHC/SDXC      |
-| CMD16   | Set block length for SDSC access                             | 50 00 00 02 00 01 | R1; Use when you need 512-byte SDSC block transfers |
-| CMD17   | Reads one block set by CMD16 (default 512kB)                 | 51 00 00 00 00 01 | R1                                                  |
-| CMD24   | Writes one data block                                        | 58 00 00 00 00 01 | R1                                                  |
+| CMD55   | Prefix next command as application-specific                  | 77 00 00 00 00 65 | R1 = 0x01 while still idle                          |
+| ACMD41  | init command: send same command & check response until ready | 69 40 00 00 00 77 | 0x01 busy, when 0x00 it is ready                    |
+| CMD58   | Read OCR and card capacity status                            | 7A 00 00 00 00 FD | R3; use CCS to distinguish SDSC from SDHC/SDXC      |
+| CMD16   | Set block length for SDSC access                             | 50 00 00 02 00 15 | R1; Use when you need 512-byte SDSC block transfers |
+| CMD17   | Reads one block set by CMD16 (default 512kB)                 | 51 00 00 00 00 55 | R1                                                  |
+| CMD24   | Writes one data block                                        | 58 00 00 00 00 6F | R1                                                  |
 
-| SD-card Command width |
-| :-------------------: |
-|        48 bits        |
+|  INIT  |
+| :----: |
+|  CMD0  |
+|  CMD8  |
+| CMD55  |
+| ACMD41 |
+| CMD58  |
+
+| SD-card Command width | R1 response width | R3 response width | R7 response width |
+| :-------------------: | :---------------: | :---------------: | :---------------: |
+|        48 bits        |      8 bits       |      40 bits      |      40 bits      |
 
 ## CONFIG  
 
 ### CLKDIV
-**For init set CLKDIV to SYSTEM_CLK/CLKDIV=400kHz**  
+CLKDIV defines the time it takes for the clock to change polarity
+**For SD-card init CMD0-CMD58 set CLKDIV so that 2xSYSTEM_CLK/CLKDIV=400kHz i.e. CLKDIV = 2xSYSTEMCLK/400kHz**  
+**After that SCLK can be increased to 25-50MHz, The SPI-mode can not check card capabilities for speed, it treats all cards as class 0 speed cards (card can not specify performance) High speed is stated to be the same as SD-bus mode which would promise up to 50MHz 3.3V signaling.**
+
+SDHC and SDXC cards (most modern cards) support 50MHz but older SDSC cards do not support anymore than 25MHz. There are apparently some SDHC cards that do not support 50MHz.
+
+**Check CMD6 from specification, unsure if SPI-mode supports this speed query of CMD6**
 
 PWDATA value configured for the sdspi tb of zipcpu.
 
 | Config CLKDIV reg                                              | PADDR            | PWDATA |
 | -------------------------------------------------------------- | ---------------- | ------ |
-| Set spi controller to write with normal SPI, chipselect to cs0 | BASE ADDR + 0x04 | 32'h7c |
+| Set spi controller to write with normal SPI, chipselect to cs0 | BASE ADDR + 0x04 | 32'hF8 |
 
 ### **SPILEN**
 
@@ -41,105 +64,101 @@ PWDATA value configured for the sdspi tb of zipcpu.
 |             31:16 FIFO width - 15:8 SPIADDR width - 7:0 SPICMD width              |
 | Max length for FIFO : 65535 (16'hFFFF), SPIADDR : 63 (8'h3F), SPICMD : 63 (8'h3F) |
 
-PWDATA 32'h00802020 sets fifo length as 128 bits  SPIADDR length to 32 bits and SPICMD length to 32 bits.  
-
-To send a cmd to sd card, these could be configured to 32'h00602808, where FIFO is 96 bits (should be enough for the sd card to give a response), SPIADDR is 32 bits for cmd additional fields + CRC and stop bit, and SPICMD 16 bits for Start bit + transaction bit, CMD, and one additiona  field byte.  
+To send all data with TXFIFO, set SPILEN to PWDATA = 32'h00300000, the first two bytes from MSB define FIFO length. 32'h00300000 will configure this to 48 bits equal to the sd-card CMD length.  
 `Note: when setting the length to lower than 32 bits, the missing bits from the length are cut from LSB side. if we want to write 16 bit length to CMD: 16'h4000, it needs to be written to input (PWDATA) as 32'h40000000. Not 32'h4000`
 
-| Config SPILEN reg                                                                                                               | PADDR            | PWDATA       |
-| ------------------------------------------------------------------------------------------------------------------------------- | ---------------- | ------------ |
-| SPICMD 16 bits for sd CMD and additional field, SPIADDR to 32 bits for CMD additional fields + CRC + stop bit, FIFO to 128 bits | BASE ADDR + 0010 | 32'h00802010 |
+FIFO length can be changed between read and write but the value  in spilen is configured when the spi_master_controller goes into idle and rd or write from status register is issued.
 
-`When sending just commands in the init phase, we use the fifo to send dummy bits/cycles, these are needed to receive a response from the sd-card`
+| Config SPILEN reg | PADDR            | PWDATA       |
+| ----------------- | ---------------- | ------------ |
+| FIFO to 48 bits for sending a CMD  | BASE ADDR + 0010 | 32'h00300000 |
+
+For RESPONSES the RXFIFO length needs to be long enough to give the sd card time to process, give atleast 8 bits after Transfer is done, and receive the response (response width varies, check which response is used for the sent CMD) and 8 bits extra after the response to provide an sclk to the card for end processing.
+
 
 ### **STATUS REG, start write to sd-card**
-``Note: spicmd and spiaddr sent before sending from txfifo``
+``Note: if spicmd and spiaddr have length set to larger than 0, they are sent before sending from txfifo, all of the data in these registers will be chained together``
 
-PWDATA 32'h0102 starts a standard SPI write transaction, using chip select cs0. SPILEN, CLKDIV, SPICMD, SPIADDR and TXFIFO should be written before STATUS is written.  
-STATUS can not be written to while cs is low i.e. during a transaction. 
+PWDATA 32'h0122 starts a standard SPI write transaction, using chip select cs0, setting a chip_select trail bit to ensure that the cs0 stays low between transfer and receive states. SPILEN, CLKDIV, and TXFIFO should be written before STATUS is written.  
 
-| Config status reg                                              | PADDR            | PWDATA   |
-| -------------------------------------------------------------- | ---------------- | -------- |
-| Set spi controller to write with normal SPI, chipselect to cs0 | BASE ADDR + 0x00 | 32'h0102 |
+STATUS should be written to only when the spi_master_controller is in the idle state.
+
+| Config status reg to initiate transfer                                           | PADDR            | PWDATA   |
+| -------------------------------------------------------------------------------- | ---------------- | -------- |
+| Set spi controller to write with normal SPI, chipselect to cs0 and cs trail to 1 | BASE ADDR + 0x00 | 32'h0122 |
 
 
-### **STATUS REG, start read from sd-card**
+| Config status reg to initiate reception of data                                 | PADDR            | PWDATA   |
+| ------------------------------------------------------------------------------- | ---------------- | -------- |
+| Set spi controller to read with normal SPI, chipselect to cs0 and cs trail to 1 | BASE ADDR + 0x00 | 32'h0121 |
 
-``Note: spicmd and spiaddr sent before reading to rxfifo``  
+### Powerup
 
-**TESTING NEEDED**
+**TODO test how powerup works best**
 
-| Config status reg                                             | PADDR            | PWDATA   |
-| ------------------------------------------------------------- | ---------------- | -------- |
-| Set spi controller to read with normal SPI, chipselect to cs0 | BASE ADDR + 0x00 | 32'h0101 |
-
-| FIFO length| PWDATA to SPILEN|
-| 512kB for data reads|h02002010
-
-Configured so that SPIADDR holds sd-card cmd additional fields + CRC + stop bit. Total 40 bits.  
-Configured so that SPICMD holds sd-card start bit + transaction bit + cmd(6 bits). Total 8 bits.  
+## SD-card INIT
 
 ### **CMD0**
 
-| Register | PADDR         | PWDATA       |
-| -------- | ------------- | ------------ |
-| SPICMD   | BASE + 0x0008 | 32'h40000000 |
-| SPIADDR  | BASE + 0x000C | 32'h00000095 |
+| PWDATA       |
+| ------------ |
+| 32'h40000000 |
+| 32'h00950000 |
 
 
 ### **CMD8**
 
-| Register | PADDR         | PWDATA       |
-| -------- | ------------- | ------------ |
-| SPICMD   | BASE + 0x0008 | 32'h48000000 |
-| SPIADDR  | BASE + 0x000C | 32'h0001AA87 |
+| PWDATA       |
+| ------------ |
+| 32'h48000000 |
+| 32'h0001AA87 |
 
 
 ### **CMD55**
 
-| Register | PADDR         | PWDATA       |
-| -------- | ------------- | ------------ |
-| SPICMD   | BASE + 0x0008 | 32'h77000000 |
-| SPIADDR  | BASE + 0x000C | 32'h00000001 |
+| PWDATA       |
+| ------------ |
+| 32'h77000000 |
+| 32'h00000001 |
 
 
 ### **ACMD41**
 
-| Register | PADDR         | PWDATA       |
-| -------- | ------------- | ------------ |
-| SPICMD   | BASE + 0x0008 | 32'h69000000 |
-| SPIADDR  | BASE + 0x000C | 32'h00000001 |
+| PWDATA       |
+| ------------ |
+| 32'h69000000 |
+| 32'h00000001 |
 
 
 ### **CMD58** 
 
-| Register | PADDR         | PWDATA       |
-| -------- | ------------- | ------------ |
-| SPICMD   | BASE + 0x0008 | 32'h7A000000 |
-| SPIADDR  | BASE + 0x000C | 32'h00000001 |
-
-### **CMD16** 
-
-| Register | PADDR         | PWDATA       |
-| -------- | ------------- | ------------ |
-| SPICMD   | BASE + 0x0008 | 32'h50000000 |
-| SPIADDR  | BASE + 0x000C | 32'h00020001 |
+| PWDATA       |
+| ------------ |
+| 32'h7A000000 |
+| 32'h00000001 |
 
 **INIT Ohi**
+
+### **CMD16** stes block len to 512 (ensures older cards follow the same partioning of data as newer cards do, wont affect newer cards)
+
+| PWDATA       |
+| ------------ |
+| 32'h50000000 |
+| 32'h00020001 |
 
 ## WRITE COMMANDS
 
 ### Single write **CMD24** 
-| Register | PADDR         | PWDATA       |
-| -------- | ------------- | ------------ |
-| SPICMD   | BASE + 0x0008 | 32'h58000000 |
-| SPIADDR  | BASE + 0x000C | 32'h00000001 |
+| PWDATA       |
+| ------------ |
+| 32'h58000000 |
+| 32'h00000001 |
 
 ## READ COMMANDS
 
 ### Single read **CMD17**
-| Register | PADDR         | PWDATA       |
-| -------- | ------------- | ------------ |
-| SPICMD   | BASE + 0x0008 | 32'h51000000 |
-| SPIADDR  | BASE + 0x000C | 32'h00000001 |
+| PWDATA       |
+| ------------ |
+| 32'h51000000 |
+| 32'h00000001 |
 
