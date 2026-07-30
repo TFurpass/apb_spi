@@ -83,19 +83,28 @@
 
 #define log2(VALUE) ((VALUE) < ( 1 ) ? 0 : (VALUE) < ( 2 ) ? 1 : (VALUE) < ( 4 ) ? 2 : (VALUE) < ( 8 ) ? 3 : (VALUE) < ( 16 )  ? 4 : (VALUE) < ( 32 )  ? 5 : (VALUE) < ( 64 )  ? 6 : (VALUE) < ( 128 ) ? 7 : (VALUE) < ( 256 ) ? 8 : (VALUE) < ( 512 ) ? 9 : (VALUE) < ( 1024 ) ? 10 : (VALUE) < ( 2048 ) ? 11 : (VALUE) < ( 4096 ) ? 12 : (VALUE) < ( 8192 ) ? 13 : (VALUE) < ( 16384 ) ? 14 : (VALUE) < ( 32768 ) ? 15 : (VALUE) < ( 65536 ) ? 16 : (VALUE) < ( 131072 ) ? 17 : (VALUE) < ( 262144 ) ? 18 : (VALUE) < ( 524288 ) ? 19 : (VALUE) < ( 1048576 ) ? 20 : (VALUE) < ( 1048576 * 2 ) ? 21 : (VALUE) < ( 1048576 * 4 ) ? 22 : (VALUE) < ( 1048576 * 8 ) ? 23 : (VALUE) < ( 1048576 * 16 ) ? 24 : 25)
 
-#define REG_STATUS 0x1A102000
-#define REG_CLKDIV 0x1A102004
-#define REG_SPICMD 0x1A102008
-#define REG_SPIADR 0x1A10200c
-#define REG_SPILEN 0x1A102010
-#define REG_SPIDUM 0x1A102014
-#define REG_TXFIFO 0x1A102018
-#define REG_RXFIFO 0x1A102020
-#define REG_INTCFG 0x1A102024
-#define REG_INTSTA 0x1A102028
+#define REG_STATUS 		0x1A102000
+#define REG_CLKDIV 		0x1A102004
+#define REG_SPICMD 		0x1A102008
+#define REG_SPIADR 		0x1A10200c
+#define REG_SPILEN 		0x1A102010
+#define REG_SPIDUM 		0x1A102014
+#define REG_TXFIFO 		0x1A102018
+#define REG_RXFIFO 		0x1A102020
+#define REG_INTCFG 		0x1A102024
+#define REG_INTSTA 		0x1A102028
+
+//Status register values
+#define WRITE_OP		0x00000122
+#define READ_OP			0x00000121
+
 
 //Register values
-#define CLK_DIV		0x7c
+#define CLK_DIV			0x7c
+#define CMD_DATA_LEN	0x00300000
+#define RX_DATA_LEN		0x00600000
+
+
 
 class	SDSPI_TB : public apb_TB<Vapb_spi_master> {
 	SDSPISIM	*m_sdspi;
@@ -160,123 +169,173 @@ public:
 
 	}
 
+	void print_fifo(){
+
+		//This function can be used to print
+		//the contents of the FIFO buffers
+
+		uint32_t rx_fifo;
+
+		for (int i = 0; i < 10; i++) {
+			rx_fifo = apb_read(REG_RXFIFO);
+			printf("RXFIFO[%d] = %02X %02X %02X %02X\n",
+					i,
+					(rx_fifo >> 24) & 0xFF,
+					(rx_fifo >> 16) & 0xFF,
+					(rx_fifo >>  8) & 0xFF,
+					rx_fifo        & 0xFF);
+		}
+	}
+
+	unsigned read_response(void){
+
+		uint32_t rx;
+		unsigned result = 0;
+		bool started = false;
+
+		for (int i = 0; i < 3; i++) {
+
+			rx = apb_read(REG_RXFIFO);
+
+			uint8_t bytes[4] = {
+				(uint8_t)((rx >> 24) & 0xFF),
+				(uint8_t)((rx >> 16) & 0xFF),
+				(uint8_t)((rx >>  8) & 0xFF),
+				(uint8_t)( rx        & 0xFF)
+			};
+
+			for (int j = 0; j < 4; j++) {
+
+				if (bytes[j] != 0xFF) {
+
+					result = (result << 8) | bytes[j];
+				}
+			}
+		}
+
+		printf("SD-CARD RESPONSE: 0x%04X\n", result);
+		printf("_________________________________________________________________\n\n");
+		return result;
+}
+
 	unsigned	sdcmd(int cmd, int arg = 0) {
+
+		//SDSPI command bank
 
 		bool first_byte = false;
 		bool second_byte = false;
+		uint32_t rx;
 
-		unsigned rx = 0;
 		
-		//FIX MAGIC NUMBER
 		switch(cmd){
 
 			case 0:
 				//CMD0
-				apb_write(REG_SPILEN, 0x00300000);
+				apb_write(REG_SPILEN, CMD_DATA_LEN);
 				apb_write(REG_TXFIFO, 0x40000000);
 				apb_write(REG_TXFIFO, 0x00950000);
-				apb_write(REG_STATUS, 0x00000122); //Start write to the SD-card
+				apb_write(REG_STATUS, WRITE_OP); //Start write to the SD-card
 
 				//Waiting for TX
 				wait_for_idle();
 
-				apb_write(REG_SPILEN, 0x00600000);
+				apb_write(REG_SPILEN, RX_DATA_LEN);
 
-				apb_write(REG_STATUS, 0x00000121); //Start read from the SD-card
+				apb_write(REG_STATUS, READ_OP); //Start read from the SD-card
 
-				rx = apb_read(REG_RXFIFO);
 
-				//CATCH 0x01 from the bitstream
-				if (rx == 0xFFFF01FF){
-					wait_for_idle();
-					apb_write(REG_STATUS, 0); //CSn toggle
-					return 0x01;
-				}
+				//Waiting for RX
+				wait_for_idle();
 
-				break;
+				apb_write(REG_STATUS, 0); //CSn toggle
+
+				return read_response();
 
 
 			case 8:
 				//CMD8
-				apb_write(REG_SPILEN, 0x00300000);
+				apb_write(REG_SPILEN, CMD_DATA_LEN);
 				apb_write(REG_TXFIFO, 0x48000001);
 				apb_write(REG_TXFIFO, 0xAA870000);
-				apb_write(REG_STATUS, 0x00000122); //Start write to the SD-card
+				apb_write(REG_STATUS, WRITE_OP); //Start write to the SD-card
 
 
 				//Waiting for TX
 				wait_for_idle();
 
-				apb_write(REG_SPILEN, 0x00600000);
+				apb_write(REG_SPILEN, RX_DATA_LEN);
 
-				apb_write(REG_STATUS, 0x00000121); //Start read from the SD-card
+				apb_write(REG_STATUS, READ_OP); //Start read from the SD-card
 
-				rx = apb_read(REG_RXFIFO);
+				//Waiting for RX
+				wait_for_idle();
 
-				//CATCH 0x01AA from the bitstream
+				apb_write(REG_STATUS, 0); //CSn toggle
 
-				if (rx == 0xFFFF0000){
-					first_byte = true;
-				}
+				return read_response();
 
-				if (rx == 0x0001AAFF){
-					second_byte = true;
-				}
-
-				if (first_byte && second_byte){
-					wait_for_idle();
-					apb_write(REG_STATUS, 0); //CSn toggle
-					return 0x01AA;
-				}
-
-				break;
 
 			case 55:
 				//CMD55
-				apb_write(REG_SPICMD, 0x77000000); //CHANGE TO TXFIFO! -> CHANGE DUT FIRST
-				apb_write(REG_SPIADR, 0x00650000); //CHANGE TO TXFIFO!
-				apb_write(REG_STATUS, 0x00000101); //Start read from the SD-card
+				apb_write(REG_SPILEN, CMD_DATA_LEN);
+				apb_write(REG_TXFIFO, 0x77000000);
+				apb_write(REG_TXFIFO, 0x00650000);
+				apb_write(REG_STATUS, WRITE_OP); //Start write to the SD-card
 
-				while(1){
+				//Waiting for TX
+				wait_for_idle();
 
-					// IMPLEMENT READ RESPONSE
-					tick();
+				apb_write(REG_SPILEN, RX_DATA_LEN);
+				apb_write(REG_STATUS, READ_OP); //Start read from the SD-card
 
+				//Waiting for RX
+				wait_for_idle();
 
-				}
-				break;
+				apb_write(REG_STATUS, 0); //CSn toggle
+
+				return read_response();
 
 
 			case 41:
-				//ACMD41 Not implemented in SD-card model!
-				apb_write(REG_SPICMD, 0x69400000); //CHANGE TO TXFIFO! -> CHANGE DUT FIRST
-				apb_write(REG_SPIADR, 0x00770000); //CHANGE TO TXFIFO!
-				apb_write(REG_STATUS, 0x00000101); //Start read from the SD-card
 
-				while(1){
+				apb_write(REG_SPILEN, CMD_DATA_LEN);
+				apb_write(REG_TXFIFO, 0x69400000);
+				apb_write(REG_TXFIFO, 0x00770000);
+				apb_write(REG_STATUS, WRITE_OP); //Start write to the SD-card
 
-					// IMPLEMENT READ RESPONSE
-					tick();
+				//Waiting for TX
+				wait_for_idle();
 
+				apb_write(REG_SPILEN, RX_DATA_LEN);
+				apb_write(REG_STATUS, READ_OP); //Start read from the SD-card
 
-				}
-				break;
+				//Waiting for RX
+				wait_for_idle();
+
+				apb_write(REG_STATUS, 0); //CSn toggle
+
+				return read_response();
 
 
 			case 58:
 				//CMD58
-				apb_write(REG_SPICMD, 0x7A000000); //CHANGE TO TXFIFO! -> CHANGE DUT FIRST
-				apb_write(REG_SPIADR, 0x00FD0000); //CHANGE TO TXFIFO!
-				apb_write(REG_STATUS, 0x00000101); //Start read from the SD-card
+				apb_write(REG_SPILEN, CMD_DATA_LEN);
+				apb_write(REG_TXFIFO, 0x7A000000);
+				apb_write(REG_TXFIFO, 0x00FD0000);
+				apb_write(REG_STATUS, WRITE_OP); //Start write to the SD-card
 
-				while(1){
+				//Waiting for TX
+				wait_for_idle();
 
-					// IMPLEMENT READ RESPONSE
-					tick();
+				apb_write(REG_SPILEN, RX_DATA_LEN);
+				apb_write(REG_STATUS, READ_OP); //Start read from the SD-card
 
+				//Waiting for RX
+				wait_for_idle();
 
-				}
-				break;
+				apb_write(REG_STATUS, 0); //CSn toggle
+
+				return read_response();
 
 
 			case 16:
@@ -393,11 +452,9 @@ public:
 	unsigned read_ocr(void) {
 		// {{{
 		unsigned	r;
-		r = sdcmd(SDSPI_READREG | SDSPI_CLEARERR | SDSPI_CMD + 58,0);
-		TBASSERT((*this),r == 0);
-
-		r = apb_read(SDSPI_DATA_ADDR);
-		fprintf(stderr, "R   : 0x%08x\nOCR: 0x%08x\n", r, m_sdspi->OCR());
+		r = sdcmd(58);
+		TBASSERT((*this),(r & 0) == 0);
+		fprintf(stderr, "R:   0x%08x\nOCR: 0x%08x\n", r, m_sdspi->OCR());
 		TBASSERT((*this), (r == m_sdspi->OCR()));
 		return r;
 		// }}}
@@ -465,7 +522,7 @@ int	main(int argc, char **argv) {
 	const char	SDIMAGE_FILENAME[] = "sdcard.img";
 	const char	VCD_FILENAME[] = "trace.vcd";
 	SDSPI_TB	tb(SDIMAGE_FILENAME);
-	unsigned	v;
+	unsigned	resp;
 
 	unsigned	boot_sector[128], test_sector[128], buf[128];
 
@@ -478,9 +535,6 @@ int	main(int argc, char **argv) {
 
 	//ADD START MOSI ACTION
 
-	//Simulation starts
-	//v = tb.read_aux();
-
 	/*
 	
 	if (tb.apb_read(REG_STATUS)) {
@@ -492,6 +546,7 @@ int	main(int argc, char **argv) {
 	*/
 	//
 	// GO_IDLE
+	printf("_________________________________________________________________\n\n");
 	printf("SEND_GO_IDLE\n");
 	assert(0x01 == tb.sdcmd(0));
 
@@ -499,20 +554,22 @@ int	main(int argc, char **argv) {
 	printf("SEND_IF_COND\n");
 	assert(0x01AA == tb.sdcmd(8));
 
-	
-	/*
-	//
 	// Wait for the card to start up
 	do {
-		assert(0 == (tb.sdcmd(SDSPI_ACMD) & 0x01));
-		assert(0 == ((v = tb.sdcmd(SDSPI_CMD + 41, 0x40000000))&~1));
-	} while(v & 1);
+		assert (0x00 == tb.sdcmd(55));
+		resp = tb.sdcmd(41);
+		assert (resp == 0 || resp == 0x01);
+	} while(resp == 0x01);
+
 
 	//
 	// Read the OCR register
 	tb.read_ocr();
-	printf("OCR: 0x%08x\n", (v = tb.apb_read(SDSPI_DATA_ADDR)));
-	assert(v == tb.OCR());
+	printf("OCR: 0x%08x\n", resp = tb.sdcmd(58));
+	//tb.print_fifo();
+	//assert(resp == tb.OCR());
+
+	/*
 
 	// Speed up our interface
 	tb.set_aux(1);

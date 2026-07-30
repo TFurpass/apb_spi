@@ -446,7 +446,7 @@ int	SDSPISIM::operator()(const int csn, const int sck, const int mosi) {
 						m_rspbuf[3] = 1;
 					m_rspbuf[4] = (char)(arg&0x0ff);
 					m_rspdly = 4;
-					//assert((m_reset_state == SDSPI_CMD0_IDLE)||(m_reset_state == SDSPI_RCVD_CMD8));
+					assert((m_reset_state == SDSPI_CMD0_IDLE)||(m_reset_state == SDSPI_RCVD_CMD8));
 					m_reset_state = SDSPI_RCVD_CMD8;
 					break;
 				case  9: // CMD9  -- SEND_CSD
@@ -530,7 +530,7 @@ int	SDSPISIM::operator()(const int csn, const int sck, const int mosi) {
 					m_dat_out = 0;
 					break;
 				case 55: // CMD55 -- APP_CMD
-					m_rspbuf[0] = 0x00;
+					m_rspbuf[0] = 0x00; 		//This should be 0x01 for sometime in real SD-card!
 					m_rspdly = 2;
 					m_altcmd_flag = true;
 					break;
