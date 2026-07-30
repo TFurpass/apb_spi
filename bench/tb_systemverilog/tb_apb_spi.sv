@@ -137,7 +137,7 @@ module tb_apb_spi #() ();
     vip_apb_spi #() i_vip (
         .apb_mst (apb_bus.APB_Master),
         .cs(csn),
-        .counter (counter)
+        .sclk( spi_clk)
     );
 
      vip_sd_card #() i_sd_card (
@@ -148,12 +148,12 @@ module tb_apb_spi #() ();
     );
 
     out_enable #() i_out_en (
-        .rst_n (rstn),
+        .rst_n (apb_bus.PRESETn),
         .sclk (spi_clk),
         .mosi_i (DUT_sd_out),
         .mosi_o (mosi),
         .chip_select (csn)
-    )
+    );
 
 
 endmodule : tb_apb_spi

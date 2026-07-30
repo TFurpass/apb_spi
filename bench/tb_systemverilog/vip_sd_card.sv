@@ -70,9 +70,9 @@ module vip_sd_card #(
 
                 counter = 0;
                 if (data_packet == 9'h40) begin
-                    $display("CMD0 detected");
+                    $display("\nCMD0 detected");
                 end else if (data_packet == 9'h95) begin
-                    $display("CRC 0x95 for CMD0 detected");
+                    $display("CRC 0x95 for CMD0 detected\n");
                     rsp = 1;
                 end
             end

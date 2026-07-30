@@ -32,6 +32,9 @@ VFLAGS = \
 	--Mdir $(VERIL_BUILD_DIR) \
 	-j `nproc` \
 
+.PHONY: 
+all: lint verilate simv \
+
 # --lint-only runs verilator as a linter
 # --timing enables timing construct support
 # --top-module sets top module as tb_apb_spi
