@@ -209,7 +209,7 @@ public:
 
 		int errcount = 0;
 
-		printf("APB-WRITE(%08x) <= %08x\n", a, v);
+		//printf("APB-WRITE(%08x) <= %08x\n", a, v);
 		
 		// Setup phase
 		

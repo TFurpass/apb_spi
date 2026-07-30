@@ -11,6 +11,7 @@ BASEADDR DEFAULT = 0x0000 0000
 | CMD55   | Prefix next command as application-specific                  | 77 00 00 00 00 65 | R1 = 0x01 while still idle                      |
 | ACMD41  | init command: send same command & check response until ready | 69 40 00 00 00 77 | 0x01 busy, when 0x00 it is ready                |
 | CMD58   | Read OCR and card capacity status                            | 7A 00 00 00 00 FD | R3; use CCS to distinguish SDSC from SDHC/SDXC  |
+|---------|-------------------|INIT PHASE READY|-------------------------|-------------------|------------------------------------------------ |
 | CMD16   | Set block length for SDSC access                             | 50 00 00 02 00 15 | Use when you need 512-byte SDSC block transfers |
 | CMD17   | Reads one block set by CMD16 (default 512kB)                 | 51 00 00 00 00 55 | TODO                                            |
 | CMD24   | Writes one data block                                        | 58 00 00 00 00 6F | TODO                                            |
@@ -87,6 +88,8 @@ Configured so that SPICMD holds sd-card start bit + transaction bit + cmd(6 bits
 | SPICMD   | BASE + 0x0008 | 32'h7A |
 | SPIADDR  | BASE + 0x000C | 32'h01 |
 
+**INIT Ohi**
+
 ### **CMD16** 
 
 | Register | PADDR         | PWDATA       |
@@ -94,7 +97,6 @@ Configured so that SPICMD holds sd-card start bit + transaction bit + cmd(6 bits
 | SPICMD   | BASE + 0x0008 | 32'h50       |
 | SPIADDR  | BASE + 0x000C | 32'h02 00 01 |
 
-**INIT Ohi**
 
 ## WRITE COMMANDS
 
