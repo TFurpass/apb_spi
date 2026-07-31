@@ -41,6 +41,7 @@ all: lint verilate simv \
 .PHONY: lint
 lint:
 	verilator \
+	--sv \
 	--lint-only \
 	--timing \
 	$(WAIVER) \
