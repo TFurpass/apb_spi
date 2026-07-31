@@ -7,6 +7,10 @@ module vip_sd_card #(
     output logic miso
 ); 
 
+    /* TODO
+    - add commands
+    - test cs interrupt in the middle of transfer functionality
+     */
 
     localparam time TA = 100ns; // after clk edge, when values are driven
     localparam time TT = 4.8us; // after clk edge, when values are read/sampled
@@ -52,7 +56,7 @@ module vip_sd_card #(
         end while(!cs); // TODO TEST cs interrupt in the middle of transfer functionality
     endtask
 
-    task automatic basic();
+    task automatic detect_CMD_and_CRC();
         
         while (cs) begin
             #2us;
