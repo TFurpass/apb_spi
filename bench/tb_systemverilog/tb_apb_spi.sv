@@ -26,6 +26,8 @@ module tb_apb_spi #() ();
     (* keep *)
     logic i0, i1, i2, i3;
 
+    bit card_found;
+
     // TODO correct bit widths
     logic [8:0] DUT_STATUS_REG; // shows STATUS_REG signals
     logic [7:0] REG_CLKDIV; 
@@ -79,11 +81,19 @@ module tb_apb_spi #() ();
         i_vip.sd_powerup();
 
         fork
-            i_vip.CMD(0);
+            i_vip.detect_card(card_found);
             i_sd_card.miso_generate();
-            i_sd_card.basic();
+            i_sd_card.detect_CMD_and_CRC();
         join
-        
+
+        // TODO add commands
+        if(card_found) begin
+            fork
+                i_vip.CMD(0);
+                i_sd_card.miso_generate();
+                i_sd_card.detect_CMD_and_CRC();
+            join
+        end 
     end
     
     always@(posedge spi_clk) begin

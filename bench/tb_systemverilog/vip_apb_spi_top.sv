@@ -48,6 +48,25 @@ module vip_apb_spi #() (
         .apb_mst(apb_mst)
     );
 
+    
+    task automatic detect_card(output bit card_found);
+
+        
+        for(logic[3:0] i = 0; i < 3; i++) begin
+
+            CMD(0);
+            if(rsp_found) begin
+                $display("\n\tCARD DETECTED\n");
+                card_found = 1;
+                return;
+            end
+        end
+
+        $display("\n\tNO CARD INSERTED\n");
+        card_found = 0;
+
+    endtask
+
     // An SD-card needs atleast 74 sclk cycles to powerup
     task automatic sd_powerup ();
 
@@ -68,13 +87,14 @@ module vip_apb_spi #() (
         
         logic [31:0] data = 0;
         logic [11:0] addr = 0;
+
         $display("\n\tinit start");
         addr = 12'(`CLKDIV_ADDR);
         data = 32'h1F4;
         $display("[VIP] Writing to CLKDIV (addr: 0x%8H) the value: 0x%8H", addr, data);
         i_apb.write(addr, data);
 
-         addr = 12'(`SPILEN_ADDR);
+        addr = 12'(`SPILEN_ADDR);
         data = 32'h00500000;
         $display("[VIP] Writing to SPILEN (addr: 0x%8H) the value: 0x%8H", addr, data);
         i_apb.write(addr, data );
@@ -184,31 +204,30 @@ module vip_apb_spi #() (
                 end
 
                 addr = 12'(`RXFIFO_ADDR);
+
+                counter = 0;
+
+                //simulates giving sd card time to process.
+                for(integer i = 0; i < 8; i++) begin
+                    @(posedge sclk);
+                end
+
+                i_apb.read(addr, read_data);
+
                 do begin
 
-                    counter = 0;
+                    @(negedge apb_mst.PCLK);
+                    response = read_data[counter*8 +: 8];
+                    counter++;
+                    @(negedge apb_mst.PCLK);
 
-                    //simulates giving sd card time to process.
-                    for(integer i = 0; i < 8; i++) begin
-                        @(posedge sclk);
+                    if (response == 8'h01) begin
+                        rsp_found = 1;
+                        $display("RSP Found!");
                     end
+                end while (counter != 'd3 );
 
-                    i_apb.read(addr, read_data);
-
-                    do begin
-
-                        @(negedge apb_mst.PCLK);
-                        response = read_data[counter*8 +: 8];
-                        counter++;
-                        @(negedge apb_mst.PCLK);
-
-                        if (response == 8'h01) begin
-                            rsp_found = 1;
-                            $display("RSP Found!");
-                        end
-                    end while (counter != 'd3 );
-
-                end while (!rsp_found);
+                
             end
 
             default: begin
