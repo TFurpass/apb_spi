@@ -22,8 +22,8 @@ BASEADDR DEFAULT = 0x0000 0000 Can be changed to what ever value, APB_SPI_CONTRO
 | CMD0    | Reset card and request SPI mode                              | 40 00 00 00 00 95 | R1 = 0x01 idle state entered                        |
 | CMD8    | Check voltage range and card generation                      | 48 00 00 01 AA 87 | R7 echo ending in 0x01AA for SDv2+                  |
 | CMD55   | Prefix next command as application-specific                  | 77 00 00 00 00 65 | R1 = 0x01 while still idle                          |
-| ACMD41  | init command: send same command & check response until ready | 69 40 00 00 00 77 | 0x01 busy, when 0x00 it is ready                    |
-| CMD58   | Read OCR and card capacity status                            | 7A 00 00 00 00 FD | R3; use CCS to distinguish SDSC from SDHC/SDXC      |
+| ACMD41  | init command: send same command & check response until ready | 69 40 00 00 00 77 | R1; 0x01 busy, when 0x00 it is ready                    |
+| CMD58   | Read OCR and card capacity status                            | 7A 00 00 00 00 FD | R3; use CCS (response[30] bit) to distinguish SDSC from SDHC/SDXC      |
 | CMD16   | Set block length for SDSC access                             | 50 00 00 02 00 15 | R1; Use when you need 512-byte SDSC block transfers |
 | CMD17   | Reads one block set by CMD16 (default 512kB)                 | 51 00 00 00 00 55 | R1                                                  |
 | CMD24   | Writes one data block                                        | 58 00 00 00 00 6F | R1                                                  |
