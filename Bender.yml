@@ -19,6 +19,7 @@ sources:
   - rtl/spi_master_controller.sv
   - rtl/spi_master_apb_if.sv
   - rtl/apb_spi_master.sv
+  - bench/tb_systemverilog/sd_reg_pkg.sv
   - bench/tb_systemverilog/apb_interface.sv
   - bench/tb_systemverilog/spi_interface.sv
   - bench/tb_systemverilog/tb_apb_spi.sv
