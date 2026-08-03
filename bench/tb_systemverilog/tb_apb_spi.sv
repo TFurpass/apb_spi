@@ -73,19 +73,25 @@ module tb_apb_spi #() ();
 
     initial begin
         counter = 0;
+        card_found = 0;
         $dumpfile("build/verilator_build/wave.vcd");
         $dumpvars(0, i_dut);
         $display("\n\t###TESTING###");
-        #500ns;
-        i_vip.init();
-        i_vip.sd_powerup();
+        #100us;
+       /*  fork
+            i_vip.init();
+            //i_vip.sd_powerup();
+            
+        join */
+        
 
         fork
-            i_vip.detect_card(card_found);
+             //i_vip.detect_card(card_found);
+             i_vip.CMD(0);
             i_sd_card.miso_generate();
             i_sd_card.detect_CMD_and_CRC();
         join
-
+/* 
         // TODO add commands
         if(card_found) begin
             fork
@@ -93,17 +99,18 @@ module tb_apb_spi #() ();
                 i_sd_card.miso_generate();
                 i_sd_card.detect_CMD_and_CRC();
             join
-        end 
+        end  */
     end
     
+
+    // Debugging
+    // ---
     always@(posedge spi_clk) begin
         if(!csn) begin
             mosi_val[0] = mosi;
             mosi_val = mosi_val << 1;
         end
-
-                counter += 1;
-
+            counter += 1;
     end
     always@(posedge csn)begin
          mosi_val = mosi_val >> 1;
@@ -112,6 +119,7 @@ module tb_apb_spi #() ();
     assign cmd = mosi_val[95:64];
     assign addr = mosi_val[63:32];
     assign fifo = mosi_val[31:0];
+    // ---
 
     apb_spi_master #() i_dut (
         .HCLK (apb_bus.PCLK),
