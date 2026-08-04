@@ -43,7 +43,7 @@ module vip_sd_card #(
 
 
     task miso_generate();
-
+        miso_line = 1;          
         while (cs) begin
             #2.5us;
         end
@@ -52,23 +52,24 @@ module vip_sd_card #(
 
             do begin 
 
-                miso_line = #TA 1;
+                miso_line = 1;
                 @(posedge sclk);
             end while(~rsp);
            
             
             // simulate delay, sd card is aligned with sclk in 8 bit counts for all data it sends and evaluates.
-            for ( i = 0; i< 7; i++) begin
+            for ( i = 0; i< 8; i++) begin
 
-                miso_line = #TA 1;
+                miso_line = @(negedge sclk) 1;
                 @(posedge sclk);
             end 
-            @(negedge sclk);
+            
             // send response
-            for (integer i = 0; i< 8; i++) begin
-                
+            for ( i = 0; i< 8; i++) begin
+
                 miso_line = #TA R1_data[7-i];
                 @(posedge sclk);
+
             end
             rsp = #TA 0;
             
@@ -76,34 +77,37 @@ module vip_sd_card #(
     endtask
 
     task automatic detect_CMD_and_CRC();
-        
+
+        // wait for sclk since the sd card operates only when sclk is provided
+        //@(posedge sclk);
+
+        // cs and mosi should be high for powerup, when cs goes low, we read mosi
         while (cs) begin
             #2us;
         end
 
         do  begin
             @(posedge sclk);
-            #TA 
-            
             data_packet[0] =  mosi;
             counter++; 
             if (counter < 4'd8) begin
                 data_packet =  data_packet << 1;
-                 
+                
             end else begin
                 counter = 0;
                 if (data_packet == 9'h40) begin
                     $display("\nCMD0 detected");
                 end else if (data_packet == 9'h95) begin
                     $display("CRC 0x95 for CMD0 detected\n");
+                    
                     rsp = 1;
-                end else begin
-                    data_packet = 0;
-                end
+                end 
+                
+                data_packet = 0;
+                
             end
             
-        end while (~cs & ~rsp);      
-
+        end while (~cs & ~rsp);                                                                                                                                      
     endtask
 
     assign miso = miso_line;

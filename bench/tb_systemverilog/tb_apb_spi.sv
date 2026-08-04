@@ -21,10 +21,6 @@ module tb_apb_spi #() ();
     (* keep *)
     logic spi_clk, mosi, miso, csn;
     logic DUT_sd_out;
-    (* keep *)
-    logic o1,o2,o3;
-    (* keep *)
-    logic i0, i1, i2, i3;
 
     bit card_found;
 
@@ -77,12 +73,12 @@ module tb_apb_spi #() ();
         $dumpfile("build/verilator_build/wave.vcd");
         $dumpvars(0, i_dut);
         $display("\n\t###TESTING###");
-        #100us;
-       /*  fork
+        #50us;
+        fork
             i_vip.init();
-            //i_vip.sd_powerup();
+            i_vip.sd_powerup();
             
-        join */
+        join
         
 
         fork
@@ -91,6 +87,7 @@ module tb_apb_spi #() ();
             i_sd_card.miso_generate();
             i_sd_card.detect_CMD_and_CRC();
         join
+
 /* 
         // TODO add commands
         if(card_found) begin
@@ -142,13 +139,13 @@ module tb_apb_spi #() ();
         .spi_csn3(),
         .spi_mode(),
         .spi_sdo0(DUT_sd_out), // connect to SPI SD-Card
-        .spi_sdo1(o1),
-        .spi_sdo2(o2),
-        .spi_sdo3(o3),
-        .spi_sdi0(i0), 
+        .spi_sdo1(),
+        .spi_sdo2(),
+        .spi_sdo3(),
+        .spi_sdi0(), 
         .spi_sdi1(miso), // connect to SPI SD-Card
-        .spi_sdi2(i2),
-        .spi_sdi3(i3)
+        .spi_sdi2(),
+        .spi_sdi3()
     );
     
 
