@@ -42,7 +42,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include <Vapb_spi_master.h> //Created new verilator library
+#include <Vapb_spi_master.h>
 #include "testb.h"
 #include "apb_tb.h"
 #include "sdspisim.h"
@@ -52,19 +52,20 @@
 // {{{
 // #define	OPT_LITTLE_ENDIAN
 
-
+/*
 
 #define	SDSPI_CMD_ADDR	0
 #define	SDSPI_DATA_ADDR	1
-#define	SDSPI_FIFO_A	2
-#define	SDSPI_FIFO_B	3
+#define	SDSPI_FIFO_A	0x1A102018 //TX
+#define	SDSPI_FIFO_B	0x1A102020 //RX
+
 
 #define	READAUX	0x80
 #define	SETAUX	0xc0
 
 #define	SDSPI_CMD			0x000040
 #define	SDSPI_ACMD			(SDSPI_CMD + 55)
-#define	SDread_responseREG		0x000200
+#define	SDread_responseREG	0x000200
 #define	SDSPI_FIFO_OP		0x000800
 #define	SDSPI_WRITEOP		0x000c00
 #define	SDSPI_FIFO_ID		0x001000
@@ -79,13 +80,17 @@
 #define	SDread_response_SECTOR	((SDSPI_CMD|SDSPI_CLEARERR|SDSPI_FIFO_OP)+17)
 #define	SDSPI_WRITE_SECTOR	((SDSPI_CMD|SDSPI_CLEARERR|SDSPI_WRITEOP)+24)
 
+#define log2(VALUE) ((VALUE) < ( 1 ) ? 0 : (VALUE) < ( 2 ) ? 1 : (VALUE) < ( 4 ) ? 2 : (VALUE) < ( 8 ) ? 3 : (VALUE) < ( 16 )  ? 4 : (VALUE) < ( 32 )  ? 5 : (VALUE) < ( 64 )  ? 6 : (VALUE) < ( 128 ) ? 7 : (VALUE) < ( 256 ) ? 8 : (VALUE) < ( 512 ) ? 9 : (VALUE) < ( 1024 ) ? 10 : (VALUE) < ( 2048 ) ? 11 : (VALUE) < ( 4096 ) ? 12 : (VALUE) < ( 8192 ) ? 13 : (VALUE) < ( 16384 ) ? 14 : (VALUE) < ( 32768 ) ? 15 : (VALUE) < ( 65536 ) ? 16 : (VALUE) < ( 131072 ) ? 17 : (VALUE) < ( 262144 ) ? 18 : (VALUE) < ( 524288 ) ? 19 : (VALUE) < ( 1048576 ) ? 20 : (VALUE) < ( 1048576 * 2 ) ? 21 : (VALUE) < ( 1048576 * 4 ) ? 22 : (VALUE) < ( 1048576 * 8 ) ? 23 : (VALUE) < ( 1048576 * 16 ) ? 24 : 25)
+
+
+*/
+
 typedef struct {
 	uint32_t fifo0;
 	uint32_t fifo1;
 	int	 r_frame;
 } SDCMD;
 
-#define log2(VALUE) ((VALUE) < ( 1 ) ? 0 : (VALUE) < ( 2 ) ? 1 : (VALUE) < ( 4 ) ? 2 : (VALUE) < ( 8 ) ? 3 : (VALUE) < ( 16 )  ? 4 : (VALUE) < ( 32 )  ? 5 : (VALUE) < ( 64 )  ? 6 : (VALUE) < ( 128 ) ? 7 : (VALUE) < ( 256 ) ? 8 : (VALUE) < ( 512 ) ? 9 : (VALUE) < ( 1024 ) ? 10 : (VALUE) < ( 2048 ) ? 11 : (VALUE) < ( 4096 ) ? 12 : (VALUE) < ( 8192 ) ? 13 : (VALUE) < ( 16384 ) ? 14 : (VALUE) < ( 32768 ) ? 15 : (VALUE) < ( 65536 ) ? 16 : (VALUE) < ( 131072 ) ? 17 : (VALUE) < ( 262144 ) ? 18 : (VALUE) < ( 524288 ) ? 19 : (VALUE) < ( 1048576 ) ? 20 : (VALUE) < ( 1048576 * 2 ) ? 21 : (VALUE) < ( 1048576 * 4 ) ? 22 : (VALUE) < ( 1048576 * 8 ) ? 23 : (VALUE) < ( 1048576 * 16 ) ? 24 : 25)
 
 #define REG_STATUS 		0x1A102000
 #define REG_CLKDIV 		0x1A102004
@@ -119,6 +124,9 @@ typedef struct {
 #define CMD55			((SDCMD){0x77000000, 0x00650000, R1})
 #define ACMD41			((SDCMD){0x69400000, 0x00770000, R1})
 #define CMD58			((SDCMD){0x7A000000, 0x00FD0000, R3})
+#define CMD16			((SDCMD){0x50000002, 0x00150000, R1})
+#define CMD17			((SDCMD){0x51000000, 0x00550000, R1})
+#define CMD24			((SDCMD){0x58000000, 0x006F0000, R1})
 
 
 class	SDSPI_TB : public apb_TB<Vapb_spi_master> {
@@ -154,29 +162,6 @@ public:
 		return m_core;
 	}
 
-	unsigned	read_aux(void) {
-		// {{{
-		apb_write(SDSPI_CMD_ADDR, READAUX);
-		return apb_read(SDSPI_DATA_ADDR);
-		// }}}
-	}
-
-	unsigned	set_aux(unsigned aux) {
-		// {{{
-		apb_write(SDSPI_DATA_ADDR, aux);
-		apb_write(SDSPI_CMD_ADDR, SETAUX);
-		return apb_read(SDSPI_DATA_ADDR);
-		// }}}
-	}
-
-	void	wait_while_busy(void) {
-
-		// {{{
-		while(!core()->events_o)
-			tick();
-		// }}}
-	}
-
 
 	void wait_for_idle(void){
 
@@ -185,25 +170,8 @@ public:
 
 	}
 
-	void print_fifo(){
 
-		//This function can be used to print
-		//the contents of the FIFO buffers
-
-		uint32_t rx_fifo;
-
-		for (int i = 0; i < 10; i++) {
-			rx_fifo = apb_read(REG_RXFIFO);
-			printf("RXFIFO[%d] = %02X %02X %02X %02X\n",
-					i,
-					(rx_fifo >> 24) & 0xFF,
-					(rx_fifo >> 16) & 0xFF,
-					(rx_fifo >>  8) & 0xFF,
-					rx_fifo        & 0xFF);
-		}
-	}
-
-	uint64_t sdcmd(SDCMD cmd){
+	uint64_t sdcmd(SDCMD cmd, bool csn_toggle = true){
 
 		apb_write(REG_SPILEN, CMD_DATA_LEN);
 		apb_write(REG_TXFIFO, cmd.fifo0);
@@ -212,22 +180,27 @@ public:
 
 		//Waiting for TX
 		wait_for_idle();
-
 		apb_write(REG_SPILEN, RX_DATA_LEN);
-
 		apb_write(REG_STATUS, READ_OP); //Start read from the SD-card
-
 
 		//Waiting for RX
 		wait_for_idle();
 
-		apb_write(REG_STATUS, 0); //CSn toggle
+		if (csn_toggle){
+			apb_write(REG_STATUS, 0); //CSn toggle
+		}
 
 		return read_response(cmd.r_frame);
 
 	}
 
 	uint64_t read_response(int FRAME){
+
+		//Fix static lenghts
+
+		//Change to operate using single bytes?
+
+		//Add timeout?
 
 		uint8_t buffer[12];
 		int idx = 0;
@@ -243,7 +216,7 @@ public:
 			buffer[idx++] =  rx        & 0xFF;
 		}
 
-		/* Find first non-0xFF byte */
+		//Find first non-0xFF byte
 		int start_idx = -1;
 		for (int i = 0; i < 12; i++) {
 			if (buffer[i] != 0xFF) {
@@ -252,10 +225,12 @@ public:
 			}
 		}
 
+
 		if (start_idx < 0 || start_idx + 5 > 12) {
 			printf("No valid 5-byte response found\n");
 			return 0;
 		}
+
 
 		// Collect 5-byte response
 		uint8_t response[5];
@@ -264,86 +239,129 @@ public:
 		}
 
 
+		/* DEBUG PRINTS
 		printf("RESPONSE BYTES: [ ");
 		for (int i = 0; i < 5; i++) {
 			printf("%02X ", response[i]);
 		}
 		printf("]   --->   [ RESPONSE FRAME(%d) ]\n",FRAME);
 
+		*/
 		uint64_t resp = 0;
 		//pack the response bytes according to the frame
 		for (int i = 0; i < FRAME; i++){
 			resp = (resp << 8) | response[i];
 		}
 
-
-		printf("RESP = 0x%02llX\n", (unsigned long long)resp);
-		printf("_________________________________________________________________\n\n");
+		//printf("RESP = 0x%02llX\n", (unsigned long long)resp);
+		//printf("_________________________________________________________________\n\n");
 
 
 		return resp;
 }
 
 
-	unsigned	read(int cmd, unsigned arg, int ln, unsigned *data) {
-		// {{{
-		unsigned	fifo_addr;
-		unsigned	lglen, r;
+uint64_t read(SDCMD cmd, int ln, unsigned *data) {
 
-		if (cmd & SDSPI_FIFO_ID)
-			fifo_addr = SDSPI_FIFO_B;
-		else
-			fifo_addr = SDSPI_FIFO_A;
+	unsigned	lglen;
+	uint64_t 	r,token;
 
-		assert((cmd & SDSPI_WRITEOP) == SDSPI_FIFO_OP);
+	/*
+	for(lglen = 4; (1<<lglen) < ln; lglen++)
+		;
+	set_aux(lglen << 16);
 
-		for(lglen = 4; (1<<lglen) < ln; lglen++)
-			;
-		set_aux(lglen << 16);
+	*/
 
-	fprintf(stderr, "LGLEN = %d, LN = %d\n", lglen, ln);
-		assert((1<<lglen) == ln);
+	r = sdcmd(CMD17,false); //disable CSn toggle
+	assert (r == 0);
 
-		apb_write(SDSPI_DATA_ADDR, arg);
-		apb_write(SDSPI_CMD_ADDR, cmd);
-		wait_while_busy();
+	//Poll for token 0xFE
+	do{
+		apb_write(REG_SPILEN, 0x00080000); //1 byte reads
+		apb_write(REG_STATUS, READ_OP);
 
-		r = apb_read(SDSPI_CMD_ADDR);
-		apb_read(fifo_addr, (1<<(lglen-2)), data, 0);
+		//Waiting for RX
+		wait_for_idle();
+		token = apb_read(REG_RXFIFO);
 
-		return	r;
-		// }}}
+	}while((token & 0xFF) != 0xFE);
+
+
+	//printf("GOT THE TOKEN: 0x%02lX\n",token & 0xFF);
+
+	//read the block
+	for (int i = 0; i<128; i++){ //Fix static length
+
+		apb_write(REG_SPILEN, 0x00200000); //32-bit reads
+		apb_write(REG_STATUS, READ_OP);
+
+		//Waiting for RX
+		wait_for_idle();
+		data[i] = apb_read(REG_RXFIFO);
+
 	}
 
-	unsigned	write(int cmd, unsigned arg, int ln, unsigned *data) {
-		// {{{
-		unsigned	fifo_addr;
-		unsigned	lglen;
+	apb_write(REG_STATUS, 0); //Toggle CSn
 
-		if (cmd & SDSPI_FIFO_ID)
-			fifo_addr = SDSPI_FIFO_B;
-		else
-			fifo_addr = SDSPI_FIFO_A;
 
-		assert((cmd & SDSPI_WRITEOP) == SDSPI_WRITEOP);
+	return	1;
 
-		for(lglen = 4; (1<<lglen) < ln; lglen++)
-			;
-		set_aux(lglen << 16);
 
-		assert((1<<lglen) == ln);
+}
 
-		apb_write(fifo_addr, (1<<(lglen-2)), data, 0);
+uint64_t write(SDCMD cmd, unsigned arg, int ln, unsigned *data) {
 
-		apb_write(SDSPI_DATA_ADDR, arg);
-		apb_write(SDSPI_CMD_ADDR, cmd);
-		wait_while_busy();
-		return	apb_read(SDSPI_CMD_ADDR);
-		// }}}
+	unsigned	lglen;
+	uint64_t	r;
+
+	/*
+
+	for(lglen = 4; (1<<lglen) < ln; lglen++)
+		;
+	apb_write(REG_SPILEN, lglen << 16);
+	assert((1<<lglen) == ln);
+
+	*/
+
+	r = sdcmd(cmd,false);
+	assert(r == 0);
+
+	//send start token
+	apb_write(REG_SPILEN, 0x00200000);
+	apb_write(REG_TXFIFO, 0x000000FE);
+	apb_write(REG_STATUS, WRITE_OP); //Start write to the SD-card
+
+	//Wait for TX
+	wait_for_idle();
+
+
+	//Start block write
+	for (int i = 0; i < 128; i++){ //fix static length!
+		apb_write(REG_SPILEN, 0x00200000);
+		apb_write(REG_TXFIFO,data[i]);
+		apb_write(REG_STATUS, WRITE_OP); //Start write to the SD-card
+
+		//wait for tx
+		wait_for_idle();
 	}
 
+	//Create function for CRC calculation!
+	apb_write(REG_TXFIFO,0x399AFFFF);
+	apb_write(REG_STATUS, WRITE_OP); //Start write to the SD-card
+
+	//wait for tx
+	wait_for_idle();
+
+
+	apb_write(REG_STATUS, 0); //Toggle CSn
+
+	return	1;
+
+}
 	////////////////////////////////////////////////////////////////////////
-	//
+
+
 	uint64_t read_ocr(void) {
 		// {{{
 		unsigned	r;
@@ -354,7 +372,7 @@ public:
 		return r;
 		// }}}
 	}
-
+/*
 	unsigned read_csd(unsigned *data) {
 		// {{{
 		unsigned	r;
@@ -402,7 +420,7 @@ public:
 		// }}}
 	}
 	
-
+*/
 };
 
 int	main(int argc, char **argv) {
@@ -435,18 +453,20 @@ int	main(int argc, char **argv) {
 	}
 	
 	*/
-	//
+
 	// GO_IDLE
 	printf("_________________________________________________________________\n\n");
-	printf("SEND_GO_IDLE\n");
+	printf("[SEND_GO_IDLE]\n\n");
 	assert(0x01 == tb.sdcmd(CMD0));
 
 	//SEND_IF_COND
-	printf("SEND_IF_COND\n");
+	printf("_________________________________________________________________\n\n");
+	printf("[SEND_IF_COND]\n\n");
 	assert(0x01AA == tb.sdcmd(CMD8));
 
 	// Wait for the card to start up
-	printf("CARD_START_UP\n");
+	printf("_________________________________________________________________\n\n");
+	printf("[CARD_START_UP]\n\n");
 	do {
 		assert (0x00 == tb.sdcmd(CMD55));
 		resp = tb.sdcmd(ACMD41);
@@ -455,15 +475,17 @@ int	main(int argc, char **argv) {
 
 
 	// Read the OCR register
-	printf("READ_OCR_REGISTER\n");
-	printf("OCR: 0x%08x\n", resp = tb.read_ocr());
+	printf("_________________________________________________________________\n\n");
+	printf("[READ_OCR_REGISTER]\n\n");
+	printf("[OCR: 0x%08X]\n", resp = tb.read_ocr());
 	assert(resp == tb.OCR());
 
 	// Speed up our interface
 	//tb.set_aux(1);
 
-	/*
+    /* OPTIONAL
 	// Read the CSD register
+	printf("[READ_CSD_REGISTER]\n\n");
 	tb.read_csd(test_sector);
 	fprintf(stderr, "Read\n");
 	printf("CSD: ");
@@ -472,27 +494,38 @@ int	main(int argc, char **argv) {
 
 
 	/*
-
-	//
+	// OPTIONAL
 	// Read the CID register
 	tb.read_cid(test_sector);
 	printf("CID: ");
 	for(int k=0; k<4; k++)
 		printf("%08x%c", test_sector[k], (k < 3) ? ':':'\n');
-	//
+
+	*/
+
 	// Read the original boot sector
-	tb.read(SDread_response_SECTOR, 0, 512, boot_sector);
-	//
+	printf("_________________________________________________________________\n\n");
+	printf("[READ_THE_ORIGINAL_BOOT_SECTOR]\n\n");
+	tb.read(CMD17, 512, boot_sector);
+
+
 	// Write random data to the boot sector
+	printf("_________________________________________________________________\n\n");
+	printf("[WRITE_RANDOM_DATA_TO_BOOT_SECTOR]\n\n");
 	for(unsigned k=0; k<128; k++)
 		test_sector[k] = rand();
-	tb.write(SDSPI_WRITE_SECTOR | SDSPI_FIFO_ID, 0, 512, test_sector);
+	tb.write(CMD24, 0, 512, test_sector);
 
-	//
+
 	// Read the random data back
-	tb.read(SDread_response_SECTOR, 0, 512, buf);
-	//
+	printf("_________________________________________________________________\n\n");
+	printf("[READ_RANDOM_DATA_BACK]\n\n");
+	tb.read(CMD17, 512, buf);
+
+
 	// Check that it was correctly written
+	printf("_________________________________________________________________\n\n");
+	printf("[CHECK_WRITTEN_DATA]\n\n");
 	for(unsigned k=0; k<128; k++) {
 	fprintf(stderr, "BUF[%3d] = 0x%08x, TST[%3d] = 0x%08x\n", k, buf[k], k, test_sector[k]);
 	}
@@ -501,17 +534,24 @@ int	main(int argc, char **argv) {
 	fprintf(stderr, "TST[%d] = 0x%08x\n", k, test_sector[k]);
 		assert(buf[k] == test_sector[k]);
 	}
-	//
+
 	// Restore the boot sector
-	tb.write(SDSPI_WRITE_SECTOR, 0, 512, boot_sector);
-	//
+	printf("_________________________________________________________________\n\n");
+	printf("[RESTORE_BOOT_SECTOR]\n\n");
+	tb.write(CMD24, 0, 512, boot_sector);
+
 	// Read it back again
-	tb.read(SDread_response_SECTOR | SDSPI_FIFO_ID, 0, 512, buf);
-	//
+	printf("_________________________________________________________________\n\n");
+	printf("[READ_DATA]\n\n");
+	tb.read(CMD17, 512, buf);
+
 	// Check that it was properly stored
+	printf("_________________________________________________________________\n\n");
+	printf("[CHECK_DATA_STORAGE]\n");
 	for(unsigned k=0; k<128; k++)
 		assert(buf[k] == boot_sector[k]);
 
+	printf("_________________________________________________________________\n\n");
 	printf("SUCCESS!\n");
-*/
+
 };
