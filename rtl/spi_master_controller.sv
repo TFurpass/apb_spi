@@ -101,6 +101,7 @@ module spi_master_controller
   (
     .clk           ( clk               ),
     .rstn          ( rstn              ),
+    .sw_rst        ( spi_swrst          ),
     .en            ( spi_clock_en      ),
     .clk_div       ( spi_clk_div       ),
     .clk_div_valid ( spi_clk_div_valid ),
@@ -113,6 +114,7 @@ module spi_master_controller
   (
     .clk            ( clk              ),
     .rstn           ( rstn             ),
+    .sftw_rst       ( spi_swrst        ),
     .en             ( spi_en_tx        ),
     .tx_edge        ( spi_fall         ),
     .tx_done        ( tx_done          ),
