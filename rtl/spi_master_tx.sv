@@ -12,6 +12,7 @@ module spi_master_tx
 (
     input  logic        clk,
     input  logic        rstn,
+    input  logic        sftw_rst,
     input  logic        en,
     input  logic        tx_edge,
     output logic        tx_done,
@@ -120,10 +121,20 @@ module spi_master_tx
     end
     else
     begin
-      counter      <= counter_next;
-      counter_trgt <= counter_trgt_next;
-      data_int     <= data_int_next;
-      tx_CS        <= tx_NS;
+
+      if(sftw_rst) begin
+        counter <= 0;
+        tx_CS <= IDLE;
+        data_int <= 32'h0;
+        counter_trgt <= 0;
+      end else begin
+        counter      <= counter_next;
+        tx_CS        <= tx_NS;
+        data_int     <= data_int_next;
+        counter_trgt <= counter_trgt_next;
+      end
+
+      
     end
   end
 endmodule
