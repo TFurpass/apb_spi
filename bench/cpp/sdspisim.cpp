@@ -300,6 +300,19 @@ int	SDSPISIM::operator()(const int csn, const int sck, const int mosi) {
 				if (m_rxloc >= (unsigned)SECTOR_SIZE+2) {
 					unsigned crc, rxcrc;
 
+					/* DEBUG PRINTS
+					printf("FIRST 32 bytes: ");
+					for(int i=0; i<32; i++)
+						printf("%02x ", m_block_buf[i] & 0xff);
+					printf("\n");
+
+					printf("LAST 32 bytes:  ");
+					for(int i=480; i<512; i++)
+						printf("%02x ", m_block_buf[i] & 0xff);
+					printf("\n");
+
+					*/
+
 					crc = blockcrc(SECTOR_SIZE, m_block_buf);
 					rxcrc = ((m_block_buf[SECTOR_SIZE]&0x0ff)<<8)
 						|(m_block_buf[SECTOR_SIZE+1]&0x0ff);
@@ -496,7 +509,7 @@ int	SDSPISIM::operator()(const int csn, const int sck, const int mosi) {
 						if (m_block_address) {
 							assert(arg < m_devblocks);
 							fseek(m_dev, arg<<LGSECTOR_SIZE, SEEK_SET);
-// fprintf(stderr, "READ: Seek to sector %d\n", arg);
+							fprintf(stderr, "READ: Seek to sector %d\n", arg);
 						} else {
 							assert(arg < m_devblocks<<9);
 							fseek(m_dev, arg, SEEK_SET);
