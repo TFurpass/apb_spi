@@ -8,7 +8,6 @@
 `define RXFIFO_ADDR  8'h20 // BASEREG + 0x20
 `define INTCFG_ADDR  8'h24 // BASEREG + 0x24
 `define INTSTA_ADDR  8'h28 // BASEREG + 0x28
-
 module vip_apb_spi #() (
     apb_interface.APB_Master apb_mst,
     input logic cs,
@@ -26,6 +25,22 @@ module vip_apb_spi #() (
     bit rsp_found;
     logic [7:0] response;
     logic [31:0] read_data = 0;
+
+    // addr for apb commands
+    logic [11:0] init_apb_addr [0:3] = '{
+        12'(`CLKDIV_ADDR),
+        12'(`SPILEN_ADDR),
+        12'(`TXFIFO_ADDR),
+        12'(`STATUS_ADDR)
+    };
+
+    // data for apb commands
+    logic [31:0] init_apb_data [0:3] = '{
+        32'h1F4,
+        32'h00500000,
+        32'hFFFFFFFF,
+        32'h02
+    };
 
     clk_rst_gen # (
         .ClkPeriod (clk_cycle),
@@ -70,7 +85,7 @@ module vip_apb_spi #() (
     // An SD-card needs atleast 74 sclk cycles to powerup, this task generates these cycles
     task automatic sd_powerup ();
         logic [31:0] read_data = 0;
-        $display("\n\tpowerup start");
+        $display("\n\tpowerup start\n");
 
         counter = 0;
         while (counter < 'd80) begin
@@ -82,8 +97,8 @@ module vip_apb_spi #() (
         $display("\tpowerup end\n");
 
         
-        $display("resetting fifos");
-        i_apb.write( 12'(`STATUS_ADDR), 32'h0010); 
+         $display("resetting fifos");
+        i_apb.write( 12'(`STATUS_ADDR), 32'h0010);  
 
         counter = 0;
     endtask
@@ -94,27 +109,22 @@ module vip_apb_spi #() (
         logic [31:0] data = 0;
         logic [11:0] addr = 0;
 
+       
+
         $display("\n\tinit start");
-        addr = 12'(`CLKDIV_ADDR);
-        data = 32'h1F4;
-        $display("[VIP] Writing to CLKDIV (addr: 0x%8H) the value: 0x%8H", addr, data);
-        i_apb.write(addr, data);
-
-        addr = 12'(`SPILEN_ADDR);
-        data = 32'h00500000;
-        $display("[VIP] Writing to SPILEN (addr: 0x%8H) the value: 0x%8H", addr, data);
-        i_apb.write(addr, data );
-
-        for(integer i = 0; i< 3;i++) begin
-            addr = 12'(`TXFIFO_ADDR);
-            data = 32'hFFFFFFFF;
-            i_apb.write(addr, data);    
+        for(integer i = 0; i< 4; i++) begin
+            addr = init_apb_addr[i];
+            data = init_apb_data[i];
+            if(i != 2) begin 
+                i_apb.write(addr, data);
+                $display("[init] APB write addr : %2h, data : %8h", addr, data);
+            end else begin
+                for(integer j = 0; j< 3; j++) begin
+                    i_apb.write(addr, data); 
+                    $display("[init] APB write addr : %2h, data : %8h", addr, data);
+                end            
+            end
         end
-
-        addr = 12'(`STATUS_ADDR);
-        data = 32'h0002;
-        $display("[VIP] Writing to STATUS (addr: 0x%8H) the value: 0x%8H, APB WRITE", addr, data);
-        i_apb.write(addr, data);
         $display("\tinit end\n");
     endtask
 
