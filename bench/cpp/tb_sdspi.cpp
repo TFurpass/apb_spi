@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Filename:	bench/cpp/tb_sdspi.cpp MODIFIED
+// Filename:	bench/cpp/tb_sdspi.cpp
 // {{{
 // Project:	SD-Card controller
 //
@@ -34,7 +34,11 @@
 //		http://www.gnu.org/licenses/gpl.html
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
+// * 05-08-2026
+//		-> Modified to use APB instead of the original Wishbone interface.
+//		**Aapo Manni (aapo.manni@tuni.fi)**
+////////////////////////////////////////////////////////////////////////////////
+
 // }}}
 // Include files
 // {{{
@@ -51,39 +55,6 @@
 // MACRO definitions
 // {{{
 // #define	OPT_LITTLE_ENDIAN
-
-/*
-
-#define	SDSPI_CMD_ADDR	0
-#define	SDSPI_DATA_ADDR	1
-#define	SDSPI_FIFO_A	0x1A102018 //TX
-#define	SDSPI_FIFO_B	0x1A102020 //RX
-
-
-#define	READAUX	0x80
-#define	SETAUX	0xc0
-
-#define	SDSPI_CMD			0x000040
-#define	SDSPI_ACMD			(SDSPI_CMD + 55)
-#define	SDread_responseREG	0x000200
-#define	SDSPI_FIFO_OP		0x000800
-#define	SDSPI_WRITEOP		0x000c00
-#define	SDSPI_FIFO_ID		0x001000
-#define	SDSPI_BUSY			0x004000
-#define	SDSPI_ERROR			0x008000
-#define	SDSPI_CLEARERR		0x008000
-#define	SDSPI_REMOVED		0x040000
-#define	SDSPI_PRESENTN		0x080000
-#define	SDSPI_RESET			0x100000
-#define	SDSPI_WATCHDOG		0x200000
-#define	SDSPI_GO_IDLE		((SDSPI_REMOVED|SDSPI_CLEARERR|SDSPI_CMD)+0)
-#define	SDread_response_SECTOR	((SDSPI_CMD|SDSPI_CLEARERR|SDSPI_FIFO_OP)+17)
-#define	SDSPI_WRITE_SECTOR	((SDSPI_CMD|SDSPI_CLEARERR|SDSPI_WRITEOP)+24)
-
-#define log2(VALUE) ((VALUE) < ( 1 ) ? 0 : (VALUE) < ( 2 ) ? 1 : (VALUE) < ( 4 ) ? 2 : (VALUE) < ( 8 ) ? 3 : (VALUE) < ( 16 )  ? 4 : (VALUE) < ( 32 )  ? 5 : (VALUE) < ( 64 )  ? 6 : (VALUE) < ( 128 ) ? 7 : (VALUE) < ( 256 ) ? 8 : (VALUE) < ( 512 ) ? 9 : (VALUE) < ( 1024 ) ? 10 : (VALUE) < ( 2048 ) ? 11 : (VALUE) < ( 4096 ) ? 12 : (VALUE) < ( 8192 ) ? 13 : (VALUE) < ( 16384 ) ? 14 : (VALUE) < ( 32768 ) ? 15 : (VALUE) < ( 65536 ) ? 16 : (VALUE) < ( 131072 ) ? 17 : (VALUE) < ( 262144 ) ? 18 : (VALUE) < ( 524288 ) ? 19 : (VALUE) < ( 1048576 ) ? 20 : (VALUE) < ( 1048576 * 2 ) ? 21 : (VALUE) < ( 1048576 * 4 ) ? 22 : (VALUE) < ( 1048576 * 8 ) ? 23 : (VALUE) < ( 1048576 * 16 ) ? 24 : 25)
-
-
-*/
 
 typedef struct {
 	uint32_t fifo0;
@@ -114,8 +85,9 @@ typedef struct {
 
 //Register values
 #define CLK_DIV			0x7c
-#define CMD_DATA_LEN	0x00300000
-#define RX_DATA_LEN		0x00600000
+#define CMD_DATA_LEN	0x00300000 //48 bits
+#define BYTE			0x00080000 //8 bits
+#define DUT_BUF_LEN		0x00200000 //32 bits
 
 
 //SD CMDs
@@ -127,7 +99,8 @@ typedef struct {
 #define CMD16			((SDCMD){0x50000002, 0x00150000, R1})
 #define CMD17			((SDCMD){0x51000000, 0x00550000, R1})
 #define CMD24			((SDCMD){0x58000000, 0x006F0000, R1})
-
+#define CMD9			((SDCMD){0x49000000, 0x00AF0000, R1})
+#define CMD10			((SDCMD){0x4A000000, 0x001B0000, R1})
 
 class	SDSPI_TB : public apb_TB<Vapb_spi_master> {
 	SDSPISIM	*m_sdspi;
@@ -164,106 +137,76 @@ public:
 
 
 	void wait_for_idle(void){
-
+		//Waits for DUT FSM to go idle
 		while ((apb_read(REG_STATUS)& 0x1) == 0)
 			;
-
 	}
 
 
-	uint64_t sdcmd(SDCMD cmd, bool csn_toggle = true){
+uint64_t sdcmd(SDCMD cmd, bool csn_toggle = true){
 
+		///////////////////////SEND COMMAND/////////////////////////
 		apb_write(REG_SPILEN, CMD_DATA_LEN);
 		apb_write(REG_TXFIFO, cmd.fifo0);
 		apb_write(REG_TXFIFO, cmd.fifo1);
-		apb_write(REG_STATUS, WRITE_OP); //Start write to the SD-card
+		apb_write(REG_STATUS, WRITE_OP);
 
 		//Waiting for TX
 		wait_for_idle();
-		apb_write(REG_SPILEN, RX_DATA_LEN);
-		apb_write(REG_STATUS, READ_OP); //Start read from the SD-card
 
-		//Waiting for RX
-		wait_for_idle();
+		///////////////////////READ RESPONSE///////////////////////
+		int FRAME = cmd.r_frame;
+		unsigned r = 0;
+		uint8_t response[FRAME] = {0};
+		//Wait for first non-0xFF byte
+		do{
+			apb_write(REG_SPILEN, BYTE);
+			apb_write(REG_STATUS, READ_OP);
+
+			//Waiting for RX
+			wait_for_idle();
+			r = apb_read(REG_RXFIFO);
+
+		}while((r & 0xFF) == 0xFF);
+		response[0] = (r & 0xFF);
+
+		//Append next bytes
+		for (int i = 1; i < FRAME; i++) {
+			apb_write(REG_SPILEN, BYTE);
+			apb_write(REG_STATUS, READ_OP);
+
+			//Waiting for RX
+			wait_for_idle();
+			r = apb_read(REG_RXFIFO);
+			response[i] = (r & 0xFF);
+		}
 
 		if (csn_toggle){
 			apb_write(REG_STATUS, 0); //CSn toggle
 		}
 
-		return read_response(cmd.r_frame);
-
-	}
-
-	uint64_t read_response(int FRAME){
-
-		//Fix static lenghts
-
-		//Change to operate using single bytes?
-
-		//Add timeout?
-
-		uint8_t buffer[12];
-		int idx = 0;
-
-		//Read 12 bytes from 3 fifo buffer
-		for (int i = 0; i < 3; i++) {
-
-			uint32_t rx = apb_read(REG_RXFIFO);
-
-			buffer[idx++] = (rx >> 24) & 0xFF;
-			buffer[idx++] = (rx >> 16) & 0xFF;
-			buffer[idx++] = (rx >>  8) & 0xFF;
-			buffer[idx++] =  rx        & 0xFF;
-		}
-
-		//Find first non-0xFF byte
-		int start_idx = -1;
-		for (int i = 0; i < 12; i++) {
-			if (buffer[i] != 0xFF) {
-				start_idx = i;
-				break;
-			}
-		}
-
-
-		if (start_idx < 0 || start_idx + 5 > 12) {
-			printf("No valid 5-byte response found\n");
-			return 0;
-		}
-
-
-		// Collect 5-byte response
-		uint8_t response[5];
-		for (int i = 0; i < 5; i++) {
-			response[i] = buffer[start_idx + i];
-		}
-
-
-		/* DEBUG PRINTS
+		//DEBUG PRINTS
+		/*
 		printf("RESPONSE BYTES: [ ");
-		for (int i = 0; i < 5; i++) {
+		for (int i = 0; i < FRAME; i++) {
 			printf("%02X ", response[i]);
 		}
 		printf("]   --->   [ RESPONSE FRAME(%d) ]\n",FRAME);
 
 		*/
+
 		uint64_t resp = 0;
-		//pack the response bytes according to the frame
+		//Pack the response bytes according to the frame
 		for (int i = 0; i < FRAME; i++){
 			resp = (resp << 8) | response[i];
 		}
-
-		//printf("RESP = 0x%02llX\n", (unsigned long long)resp);
-		//printf("_________________________________________________________________\n\n");
-
-
 		return resp;
-}
 
+	}
 
-uint64_t read(SDCMD cmd, int ln, unsigned *data) {
+void read(SDCMD cmd, int ln, unsigned *data) {
 
-	unsigned	lglen;
+	unsigned	len = ln/4;
 	uint64_t 	r,token;
 
 	/*
@@ -273,12 +216,12 @@ uint64_t read(SDCMD cmd, int ln, unsigned *data) {
 
 	*/
 
-	r = sdcmd(CMD17,false); //disable CSn toggle
+	r = sdcmd(cmd,false); //disable CSn toggle
 	assert (r == 0);
 
 	//Poll for token 0xFE
 	do{
-		apb_write(REG_SPILEN, 0x00080000); //1 byte reads
+		apb_write(REG_SPILEN, BYTE); //1 byte reads
 		apb_write(REG_STATUS, READ_OP);
 
 		//Waiting for RX
@@ -287,13 +230,10 @@ uint64_t read(SDCMD cmd, int ln, unsigned *data) {
 
 	}while((token & 0xFF) != 0xFE);
 
-
-	//printf("GOT THE TOKEN: 0x%02lX\n",token & 0xFF);
-
 	//read the block
-	for (int i = 0; i<128; i++){ //Fix static length
+	for (int i = 0; i<len; i++){
 
-		apb_write(REG_SPILEN, 0x00200000); //32-bit reads
+		apb_write(REG_SPILEN, DUT_BUF_LEN); //32-bit reads
 		apb_write(REG_STATUS, READ_OP);
 
 		//Waiting for RX
@@ -304,15 +244,28 @@ uint64_t read(SDCMD cmd, int ln, unsigned *data) {
 
 	apb_write(REG_STATUS, 0); //Toggle CSn
 
-
-	return	1;
-
-
 }
 
-uint64_t write(SDCMD cmd, unsigned arg, int ln, unsigned *data) {
+unsigned blockcrc(int len, char *buf) const {
+	//Function to calculate block CRC in write-operation
+	unsigned int fill = 0, taps = 0x1021;
 
-	unsigned	lglen;
+	for(int i=0; i<len; i++) {
+		fill ^= ((buf[i]&0x0ff) << 8);
+		for(int j=0; j<8; j++) {
+			if (fill&0x8000)
+				fill = (fill<<1)^taps;
+			else
+				fill <<= 1;
+		}
+	}
+	fill &= 0x0FFFF;
+	return fill;
+}
+
+void write(SDCMD cmd, unsigned arg, int ln, unsigned *data) {
+
+	unsigned	len = ln/4;
 	uint64_t	r;
 
 	/*
@@ -328,35 +281,42 @@ uint64_t write(SDCMD cmd, unsigned arg, int ln, unsigned *data) {
 	assert(r == 0);
 
 	//send start token
-	apb_write(REG_SPILEN, 0x00200000);
+	apb_write(REG_SPILEN, DUT_BUF_LEN);
 	apb_write(REG_TXFIFO, 0x000000FE);
-	apb_write(REG_STATUS, WRITE_OP); //Start write to the SD-card
+	apb_write(REG_STATUS, WRITE_OP);
 
 	//Wait for TX
 	wait_for_idle();
 
 
 	//Start block write
-	for (int i = 0; i < 128; i++){ //fix static length!
-		apb_write(REG_SPILEN, 0x00200000);
+	for (int i = 0; i < len; i++){ //fix static length!
+		apb_write(REG_SPILEN, DUT_BUF_LEN);
 		apb_write(REG_TXFIFO,data[i]);
-		apb_write(REG_STATUS, WRITE_OP); //Start write to the SD-card
+		apb_write(REG_STATUS, WRITE_OP);
 
 		//wait for tx
 		wait_for_idle();
 	}
 
-	//Create function for CRC calculation!
-	apb_write(REG_TXFIFO,0x399AFFFF);
-	apb_write(REG_STATUS, WRITE_OP); //Start write to the SD-card
+	//Byte reordering
+	uint8_t tx[ln];
+	for (int i = 0; i < 128; i++) {
+		tx[4*i+0] = (data[i] >> 24) & 0xff;
+		tx[4*i+1] = (data[i] >> 16) & 0xff;
+		tx[4*i+2] = (data[i] >>  8) & 0xff;
+		tx[4*i+3] = (data[i] >>  0) & 0xff;
+	}
+
+	//Calculate CRC
+	unsigned crc = blockcrc(ln, (char *)tx);
+	printf("CALCULATED CRC: 0x%04X\n",crc);
+	apb_write(REG_TXFIFO,(((unsigned) crc << 16 | 0xFFFF)));
+	apb_write(REG_STATUS, WRITE_OP);
 
 	//wait for tx
 	wait_for_idle();
-
-
 	apb_write(REG_STATUS, 0); //Toggle CSn
-
-	return	1;
 
 }
 	////////////////////////////////////////////////////////////////////////
@@ -372,12 +332,10 @@ uint64_t write(SDCMD cmd, unsigned arg, int ln, unsigned *data) {
 		return r;
 		// }}}
 	}
-/*
-	unsigned read_csd(unsigned *data) {
+
+void read_csd(unsigned *data) {
 		// {{{
-		unsigned	r;
-		r = read(SDSPI_CLEARERR|SDSPI_FIFO_OP|SDSPI_CMD+9, 0,
-				16, data);
+		read(CMD9, 16, data);
 
 		for(int k=0; k<4; k++)
 			printf("CSD[%d] = 0x%08x\n", k, data[k]);
@@ -395,15 +353,13 @@ uint64_t write(SDCMD cmd, unsigned arg, int ln, unsigned *data) {
 
 			TBASSERT((*this), v == data[k]);
 		}
-		return r;
+
 		// }}}
 	}
 
-	unsigned read_cid(unsigned *data) {
+void read_cid(unsigned *data) {
 		// {{{
-		unsigned	r;
-		r = read(SDSPI_CLEARERR|SDSPI_FIFO_OP|SDSPI_CMD+10, 0,
-				16, data);
+		read(CMD10, 16, data);
 		for(int k=0; k<4; k++) {
 			unsigned v;
 			v = 0;
@@ -416,11 +372,11 @@ uint64_t write(SDCMD cmd, unsigned arg, int ln, unsigned *data) {
 #endif
 
 			TBASSERT((*this), v == data[k]);
-		} return r;
+		}
 		// }}}
 	}
 	
-*/
+
 };
 
 int	main(int argc, char **argv) {
@@ -462,7 +418,7 @@ int	main(int argc, char **argv) {
 	//SEND_IF_COND
 	printf("_________________________________________________________________\n\n");
 	printf("[SEND_IF_COND]\n\n");
-	assert(0x01AA == tb.sdcmd(CMD8));
+	assert(0x01AA == (tb.sdcmd(CMD8) & 0xFFFF));
 
 	// Wait for the card to start up
 	printf("_________________________________________________________________\n\n");
@@ -480,11 +436,9 @@ int	main(int argc, char **argv) {
 	printf("[OCR: 0x%08X]\n", resp = tb.read_ocr());
 	assert(resp == tb.OCR());
 
-	// Speed up our interface
-	//tb.set_aux(1);
 
-    /* OPTIONAL
-	// Read the CSD register
+	// Read the CSD register -> OPTIONAL
+	printf("_________________________________________________________________\n\n");
 	printf("[READ_CSD_REGISTER]\n\n");
 	tb.read_csd(test_sector);
 	fprintf(stderr, "Read\n");
@@ -493,15 +447,13 @@ int	main(int argc, char **argv) {
 		printf("%08x%c", test_sector[k], (k < 3) ? ':':'\n');
 
 
-	/*
-	// OPTIONAL
-	// Read the CID register
+	// Read the CID register -> OPTIONAL
+	printf("_________________________________________________________________\n\n");
+	printf("[READ_CID_REGISTER]\n\n");
 	tb.read_cid(test_sector);
 	printf("CID: ");
 	for(int k=0; k<4; k++)
 		printf("%08x%c", test_sector[k], (k < 3) ? ':':'\n');
-
-	*/
 
 	// Read the original boot sector
 	printf("_________________________________________________________________\n\n");
@@ -534,6 +486,7 @@ int	main(int argc, char **argv) {
 	fprintf(stderr, "TST[%d] = 0x%08x\n", k, test_sector[k]);
 		assert(buf[k] == test_sector[k]);
 	}
+	printf("\nSUCCESS!\n");
 
 	// Restore the boot sector
 	printf("_________________________________________________________________\n\n");
@@ -547,11 +500,10 @@ int	main(int argc, char **argv) {
 
 	// Check that it was properly stored
 	printf("_________________________________________________________________\n\n");
-	printf("[CHECK_DATA_STORAGE]\n");
+	printf("[CHECK_DATA_STORAGE] ---> ");
 	for(unsigned k=0; k<128; k++)
 		assert(buf[k] == boot_sector[k]);
-
-	printf("_________________________________________________________________\n\n");
 	printf("SUCCESS!\n");
+	printf("_________________________________________________________________\n\n");
 
 };
