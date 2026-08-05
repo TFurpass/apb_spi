@@ -18,8 +18,30 @@ module vip_sd_card #(
     localparam time TA = 100ns; // after clk edge, when values are driven
     localparam time TT = 4.8us; // after clk edge, when values are read/sampled
 
+    typedef enum logic [7:0] {
+        CMD0 = 8'h40, 
+        CMD8 = 8'h48,
+        CMD55 = 8'h77,
+        ACMD41 = 8'h69,
+        CMD58 = 8'h7A,
+        CMD17 = 8'h51,
+        CMD24 = 8'h58
+        } cmd_num;
+    cmd_num cmd;
+
+    typedef enum logic [7:0] {
+        CMD0_CRC = 8'h95, 
+        CMD8_CRC = 8'h87,
+        CMD55_CRC = 8'h65,
+        ACMD41_CRC = 8'h77,
+        CMD58_CRC = 8'hFD,
+        CMD17_CRC = 8'h55,
+        CMD24_CRC = 8'h6F
+    } crc_val;
+    crc_val crc;
+
     logic [3:0] counter;
-    logic [8:0] data_packet;
+    logic [7:0] data_packet;
     // when CRC is detected, rsp is asserted to enable response.
     bit rsp = 0;
     logic miso_line;
@@ -95,19 +117,22 @@ module vip_sd_card #(
                 
             end else begin
                 counter = 0;
-                if (data_packet == 9'h40) begin
-                    $display("\nCMD0 detected");
-                end else if (data_packet == 9'h95) begin
-                    $display("CRC 0x95 for CMD0 detected\n");
+                crc = crc_val'(data_packet);
+                cmd = cmd_num'(data_packet);
+
+                if (cmd.name() != "") begin
+                    $display("\n%s detected", cmd.name());
+
+                end else if (crc.name() != "") begin
+                    $display("CRC %2h for %s detected\n", crc, crc.name);
                     
                     rsp = 1;
                 end 
-                
                 data_packet = 0;
                 
             end
             
-        end while (~cs & ~rsp);                                                                                                                                      
+        end while (~cs);                                                                                                                                      
     endtask
 
     assign miso = miso_line;
