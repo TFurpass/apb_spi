@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Filename:	bench/cpp/apb_tb.h MODIFIED VERSION
+// Filename:	bench/cpp/apb_tb.h
 // {{{
 // Project:	SD-Card controller
 //
@@ -33,8 +33,11 @@
 //		http://www.gnu.org/licenses/gpl.html
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
-// }}}
+// * 05-08-2026
+//		-> Modified to use APB instead of the original Wishbone interface.
+//		**Aapo Manni (aapo.manni@tuni.fi)**
+////////////////////////////////////////////////////////////////////////////////
+
 #include <stdio.h>
 #include <verilated.h>
 #include <verilated_vcd_c.h>
