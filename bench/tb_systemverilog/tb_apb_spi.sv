@@ -79,14 +79,13 @@ module tb_apb_spi #() ();
             i_vip.sd_powerup();
             
         join
-        
-
         fork
-             //i_vip.detect_card(card_found);
-             i_vip.CMD(0);
             i_sd_card.miso_generate();
             i_sd_card.detect_CMD_and_CRC();
-        join
+        join_none
+
+        i_vip.CMD(0);
+        i_vip.CMD(8);
 
 /* 
         // TODO add commands

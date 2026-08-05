@@ -37,16 +37,28 @@ module vip_apb_spi #() (
         '{12'(`TXFIFO_ADDR),32'hFFFFFFFF},
         '{12'(`STATUS_ADDR), 32'h02}
     };
-
-    apb_addr_data cmd0_apb_writepairs [0:6] = '{
+   
+    apb_addr_data cmd_apb_write_config [0:3] = '{
         '{12'(`CLKDIV_ADDR), 32'h1F4},
         '{12'(`SPILEN_ADDR), 32'h00300000},
-        '{12'(`TXFIFO_ADDR),32'h40000000},
-        '{12'(`TXFIFO_ADDR),32'h00950000},
         '{12'(`STATUS_ADDR),32'h0122},
+        '{12'(`SPILEN_ADDR),32'h00300000}
+    };
+
+    apb_addr_data cmd_apb_read_config [0:1] = '{
         '{12'(`SPILEN_ADDR),32'h00300000},
         '{12'(`STATUS_ADDR), 32'h0121}
     };
+    apb_addr_data cmd0 [0:1] = '{
+        '{12'(`TXFIFO_ADDR),32'h40000000},
+        '{12'(`TXFIFO_ADDR),32'h00950000}
+    };
+
+    apb_addr_data cmd8 [0:1] = '{
+        '{12'(`TXFIFO_ADDR),32'h48000001},
+        '{12'(`TXFIFO_ADDR),32'hAA870000}
+    };
+
 
     clk_rst_gen # (
         .ClkPeriod (clk_cycle),
@@ -163,9 +175,10 @@ module vip_apb_spi #() (
 
     task automatic CMD (logic [7:0] CMD);
         
-        automatic logic [31:0] data = 0;
-        logic [31:0] CMD0_data = 32'h40;
+        logic [31:0] data = 0;
         logic [11:0] addr;
+
+        apb_addr_data cmd [0:1] = '{default:'0};
        
         logic [31:0] status;
         logic [31:0] bounds;
@@ -179,32 +192,13 @@ module vip_apb_spi #() (
         case(CMD)
 
             0: begin
-
- 
-                for(integer i= 0; i< 7; i++) begin
-                    // waiting for idle state at the start and everytime an spi write or read is issued through state_register
-                    if(i == 4 | i == 0 | i == 5) begin
-                        wait_for_idle();
-                    end
-                    data = cmd0_apb_writepairs[i].data;
-                    addr = cmd0_apb_writepairs[i].addr;
-                    i_apb.write(addr, data);
-                    @(posedge apb_mst.PCLK);
-                end
-
-                // wait for RX state of the spi_master_controller so we know read from sd has begun
-                addr = 12'(`STATUS_ADDR);
-                while (read_data[7:0] != 8'h40 ) begin
-                    i_apb.read(addr, read_data);
-                    #5us;
-                end
-
-                // wait for read from sd-card to finish
-                wait_for_idle();
-
-                // read values from DUT RXFIFO
-                read_rxfifo();
+                cmd =  cmd0;
                 
+                
+            end
+
+            8: begin
+                cmd = cmd8;
             end
 
             default: begin
@@ -212,6 +206,59 @@ module vip_apb_spi #() (
             end
         endcase
 
+        // config registers of dut for TX to sd-card and RX from sd-card
+       write_and_read_with_sd(cmd, data, addr);
+       
+    endtask
+
+    task automatic write_and_read_with_sd(apb_addr_data cmd [0:1], logic [31:0] data, logic [11:0] addr);
+        for(integer i= 0; i< 4; i++) begin
+
+            // waiting for idle state at the start and everytime an spi write or read is issued through state_register
+            if(i == 2 | i == 0 ) begin
+                wait_for_idle();
+            end
+
+            if(i == 2) begin 
+                // write fifos with data before issuing write
+                for(integer j = 0; j< 2; j++) begin
+                    data = cmd[j].data;
+                    addr = cmd[j].addr;
+                    i_apb.write(addr, data);
+                    @(posedge apb_mst.PCLK);
+                end
+            end 
+
+            data = cmd_apb_write_config[i].data;
+            addr = cmd_apb_write_config[i].addr;
+            i_apb.write(addr, data);
+
+            @(posedge apb_mst.PCLK);
+        end
+
+        wait_for_idle();
+        
+        for(integer i = 0; i< 2; i++) begin
+            data = cmd_apb_read_config[i].data;
+            addr = cmd_apb_read_config[i].addr;
+            i_apb.write(addr, data);
+
+            @(posedge apb_mst.PCLK);
+        end
+
+
+        // wait for RX state of the spi_master_controller so we know read from sd has begun
+        addr = 12'(`STATUS_ADDR);
+        while (read_data[7:0] != 8'h40 ) begin
+            i_apb.read(addr, read_data);
+            #5us;
+        end
+
+        // wait for read from sd-card to finish
+        wait_for_idle();
+
+        // read values from DUT RXFIFO
+        read_rxfifo();
     endtask
 
     task automatic read_rxfifo();
