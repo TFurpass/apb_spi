@@ -98,12 +98,10 @@ module vip_apb_spi #() (
         while (counter < 'd80) begin
             @(posedge sclk);
             counter++;
-            
         end
 
         $display("[powerup] SCLK cycle: %d", counter);
         $display("\tpowerup end\n");
-        
         counter = 0;
     endtask
 
@@ -205,22 +203,8 @@ module vip_apb_spi #() (
                 wait_for_idle();
 
                 // read values from DUT RXFIFO
-                addr = 12'(`RXFIFO_ADDR);
-                counter = 0;
-                read_data = 0;
-                i_apb.read(addr, read_data);
-                do begin
-
-                    @(negedge apb_mst.PCLK);
-                    response = read_data[counter*8 +: 8];
-                    counter++;
-                    @(negedge apb_mst.PCLK);
-
-                    if (response == 8'h01) begin
-                        rsp_found = 1;
-                        $display("RSP Found!\n");
-                    end
-                end while (counter != 'd3 );
+                read_rxfifo();
+                
             end
 
             default: begin
@@ -228,9 +212,27 @@ module vip_apb_spi #() (
             end
         endcase
 
-        //TODO add addr check.
+    endtask
 
+    task automatic read_rxfifo();
+        logic [11:0] addr = 0;
+        // read values from DUT RXFIFO
+        addr = 12'(`RXFIFO_ADDR);
+        counter = 0;
+        read_data = 0;
+        i_apb.read(addr, read_data);
+        do begin
 
+            @(negedge apb_mst.PCLK);
+            response = read_data[counter*8 +: 8];
+            counter++;
+            @(negedge apb_mst.PCLK);
+
+            if (response == 8'h01) begin
+                rsp_found = 1;
+                $display("RSP Found!\n");
+            end
+        end while (counter != 'd3 );
     endtask
 
    
