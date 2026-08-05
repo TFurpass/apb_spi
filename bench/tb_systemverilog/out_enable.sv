@@ -23,6 +23,8 @@ always_ff @(posedge sclk, negedge rst_n) begin
 
         if ( transfer_flag_q & (counter < 'd46) ) begin
             counter++;
+        end else if (counter == 'd46) begin
+            counter = 0;
         end
 
         transfer_flag_q <= transfer_flag_d;
