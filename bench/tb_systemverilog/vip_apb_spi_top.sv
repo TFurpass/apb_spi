@@ -26,20 +26,26 @@ module vip_apb_spi #() (
     logic [7:0] response;
     logic [31:0] read_data = 0;
 
-    // addr for apb commands
-    logic [11:0] init_apb_addr [0:3] = '{
-        12'(`CLKDIV_ADDR),
-        12'(`SPILEN_ADDR),
-        12'(`TXFIFO_ADDR),
-        12'(`STATUS_ADDR)
+    typedef struct packed {
+        logic [11:0] addr;
+        logic [31:0] data;
+    } apb_addr_data;
+
+    apb_addr_data init_apb [0:3]='{
+        '{12'(`CLKDIV_ADDR),32'h1F4},
+        '{12'(`SPILEN_ADDR),32'h00500000},
+        '{12'(`TXFIFO_ADDR),32'hFFFFFFFF},
+        '{12'(`STATUS_ADDR), 32'h02}
     };
 
-    // data for apb commands
-    logic [31:0] init_apb_data [0:3] = '{
-        32'h1F4,
-        32'h00500000,
-        32'hFFFFFFFF,
-        32'h02
+    apb_addr_data cmd0_apb_writepairs [0:6] = '{
+        '{12'(`CLKDIV_ADDR), 32'h1F4},
+        '{12'(`SPILEN_ADDR), 32'h00300000},
+        '{12'(`TXFIFO_ADDR),32'h40000000},
+        '{12'(`TXFIFO_ADDR),32'h00950000},
+        '{12'(`STATUS_ADDR),32'h0122},
+        '{12'(`SPILEN_ADDR),32'h00300000},
+        '{12'(`STATUS_ADDR), 32'h0121}
     };
 
     clk_rst_gen # (
@@ -84,22 +90,20 @@ module vip_apb_spi #() (
 
     // An SD-card needs atleast 74 sclk cycles to powerup, this task generates these cycles
     task automatic sd_powerup ();
+
         logic [31:0] read_data = 0;
         $display("\n\tpowerup start\n");
-
         counter = 0;
+
         while (counter < 'd80) begin
             @(posedge sclk);
             counter++;
             
         end
-        $display("[VIP] SCLK cycle: %d", counter);
+
+        $display("[powerup] SCLK cycle: %d", counter);
         $display("\tpowerup end\n");
-
         
-         $display("resetting fifos");
-        i_apb.write( 12'(`STATUS_ADDR), 32'h0010);  
-
         counter = 0;
     endtask
 
@@ -109,12 +113,10 @@ module vip_apb_spi #() (
         logic [31:0] data = 0;
         logic [11:0] addr = 0;
 
-       
-
         $display("\n\tinit start");
         for(integer i = 0; i< 4; i++) begin
-            addr = init_apb_addr[i];
-            data = init_apb_data[i];
+            addr = init_apb[i].addr;
+            data = init_apb[i].data;
             if(i != 2) begin 
                 i_apb.write(addr, data);
                 $display("[init] APB write addr : %2h, data : %8h", addr, data);
@@ -148,6 +150,19 @@ module vip_apb_spi #() (
 
     endtask
 
+    task automatic wait_for_idle();
+            logic [11:0] addr;
+
+        @(posedge apb_mst.PCLK);
+        // wait for idle state
+        addr = 12'(`STATUS_ADDR);
+        while (read_data[0] != 1'h1 ) begin
+            i_apb.read(addr, read_data);
+            @(posedge apb_mst.PCLK);
+        end
+        read_data = 0;
+    endtask
+
     task automatic CMD (logic [7:0] CMD);
         
         automatic logic [31:0] data = 0;
@@ -167,81 +182,33 @@ module vip_apb_spi #() (
 
             0: begin
 
-                // wait for idle state
-                addr = 12'(`STATUS_ADDR);
-                while (read_data[0] != 1'h1 ) begin
-                    i_apb.read(addr, read_data);
+ 
+                for(integer i= 0; i< 7; i++) begin
+                    // waiting for idle state at the start and everytime an spi write or read is issued through state_register
+                    if(i == 4 | i == 0 | i == 5) begin
+                        wait_for_idle();
+                    end
+                    data = cmd0_apb_writepairs[i].data;
+                    addr = cmd0_apb_writepairs[i].addr;
+                    i_apb.write(addr, data);
+                    @(posedge apb_mst.PCLK);
                 end
 
-                addr = 12'(`CLKDIV_ADDR);
-                data = 32'h1F4;
-                $display("[VIP] Writing to CLKDIV (addr: 0x%8H) the value: 0x%8H", addr, data);
-                i_apb.write(addr, data);
-                
-                addr = 12'(`SPILEN_ADDR);
-                data = 32'h00300000;
-                $display("[VIP] Writing to SPILEN (addr: 0x%8H) the value: 0x%8H", addr, data);
-                i_apb.write(addr, data );
-
-                addr = 12'(`TXFIFO_ADDR);
-                data = 32'h40000000;
-                i_apb.write(addr, data); 
-                $display("[VIP] Writing to TXFIFO (addr: 0x%8H) the value: 0x%8H", addr, data);
-
-                addr = 12'(`TXFIFO_ADDR);
-                data = 32'h00950000;
-                i_apb.write(addr, data); 
-                $display("[VIP] Writing to TXFIFO (addr: 0x%8H) the value: 0x%8H", addr, data);
-              
-                addr = 12'(`STATUS_ADDR);
-                data = 32'h0122;
-                $display("[VIP] APB WRITE addr: %4h, data: %4h", addr, data);
-                i_apb.write(addr, data);
-
-                // wait for idle state of the spi_master_controller
-                addr = 12'(`STATUS_ADDR);
-                i_apb.read(addr, read_data);
-                while (read_data[0] != 1'b1 ) begin
-                    i_apb.read(addr, read_data);
-                    #5us;
-                end
-
-                addr = 12'(`SPILEN_ADDR);
-                data = 32'h00300000;
-                $display("[VIP] Writing to SPILEN (addr: 0x%8H) the value: 0x%8H, \n\tNote: Setting FIFO width larger for reading SD-card response", addr, data);
-                i_apb.write(addr, data );
-
-
-                addr = 12'(`STATUS_ADDR);
-                data = 32'h0121;
-                $display("[VIP] APB READ");
-                i_apb.write(addr, data);
-
-                 // wait for RX state of the spi_master_controller
+                // wait for RX state of the spi_master_controller so we know read from sd has begun
                 addr = 12'(`STATUS_ADDR);
                 while (read_data[7:0] != 8'h40 ) begin
                     i_apb.read(addr, read_data);
                     #5us;
                 end
 
-                // wait for idle state of the spi_master_controller
-                addr = 12'(`STATUS_ADDR);
-                while (read_data[0] != 1'b1 ) begin
-                    i_apb.read(addr, read_data);
-                    #5us;
-                end
+                // wait for read from sd-card to finish
+                wait_for_idle();
 
-                /* //simulates giving sd card time to process.
-                for(integer i = 0; i < 8; i++) begin
-                    @(posedge sclk);
-                end */
-
+                // read values from DUT RXFIFO
                 addr = 12'(`RXFIFO_ADDR);
                 counter = 0;
                 read_data = 0;
                 i_apb.read(addr, read_data);
-
-
                 do begin
 
                     @(negedge apb_mst.PCLK);
@@ -254,8 +221,6 @@ module vip_apb_spi #() (
                         $display("RSP Found!\n");
                     end
                 end while (counter != 'd3 );
-
-                
             end
 
             default: begin
