@@ -14,13 +14,14 @@ module tb_apb_spi #() ();
         logic [31:0] fifo;
     // Unused out & in of DUT
     logic   unused_out, unused_in;
-
+    logic [7:0] cmd_num [0:6] = '{0, 8, 55, 41, 58, 17, 24}; 
     logic[127:0] mosi_val; 
     (* keep *)
     logic [127:0] counter= 0;
     (* keep *)
     logic spi_clk, mosi, miso, csn;
     logic DUT_sd_out;
+    logic out_en;
 
     bit card_found;
 
@@ -79,14 +80,16 @@ module tb_apb_spi #() ();
             i_vip.sd_powerup();
             
         join
-        fork
-            i_sd_card.miso_generate();
-            i_sd_card.detect_CMD_and_CRC();
-        join_none
-
-        i_vip.CMD(0);
-        i_vip.CMD(8);
-
+        
+        for(integer i = 0; i< 7; i++) begin
+            fork
+                i_sd_card.miso_generate();
+                i_sd_card.detect_CMD_and_CRC();
+                i_vip.CMD(cmd_num[i]);
+            join
+        end
+        
+        
 /* 
         // TODO add commands
         if(card_found) begin
@@ -130,7 +133,7 @@ module tb_apb_spi #() ();
         .PSLVERR (apb_bus.PSLVERR),
 
         .events_o(),
-
+        .out_en(out_en),
         .spi_clk(spi_clk), // connect to SPI SD-Card
         .spi_csn0(csn), // connect to SPI SD-Card
         .spi_csn1(),
@@ -166,6 +169,7 @@ module tb_apb_spi #() ();
         .sclk (spi_clk),
         .mosi_i (DUT_sd_out),
         .mosi_o (mosi),
+        .out_en (out_en),
         .chip_select (csn)
     );
 

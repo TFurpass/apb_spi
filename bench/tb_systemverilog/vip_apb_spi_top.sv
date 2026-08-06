@@ -17,14 +17,16 @@ module vip_apb_spi #() (
 );
     
     localparam time clk_cycle = 10ns;
-    localparam longint unsigned SimCycles = 'd300_000;
+    localparam longint unsigned SimCycles = 'd500_000;
     logic clk, rst_n;
     logic [7:0] counter = 0;
 
     integer i;
-    bit rsp_found;
+    logic rsp_found;
+    logic read_rsp;
     logic [7:0] response;
     logic [31:0] read_data = 0;
+    logic [31:0] fifodata = 0;
 
     typedef struct packed {
         logic [11:0] addr;
@@ -46,7 +48,7 @@ module vip_apb_spi #() (
     };
 
     apb_addr_data cmd_apb_read_config [0:1] = '{
-        '{12'(`SPILEN_ADDR),32'h00300000},
+        '{12'(`SPILEN_ADDR),32'h00200000},
         '{12'(`STATUS_ADDR), 32'h0121}
     };
     apb_addr_data cmd0 [0:1] = '{
@@ -59,7 +61,30 @@ module vip_apb_spi #() (
         '{12'(`TXFIFO_ADDR),32'hAA870000}
     };
 
+    apb_addr_data cmd55 [0:1] = '{
+        '{12'(`TXFIFO_ADDR),32'h77000000},
+        '{12'(`TXFIFO_ADDR),32'h00650000}
+    };
+    
+    apb_addr_data acmd41 [0:1] = '{
+        '{12'(`TXFIFO_ADDR),32'h69400000},
+        '{12'(`TXFIFO_ADDR),32'h00770000}
+    };
 
+    apb_addr_data cmd58 [0:1] = '{
+        '{12'(`TXFIFO_ADDR),32'h7A000000},
+        '{12'(`TXFIFO_ADDR),32'h00FD0000}
+    };
+
+    apb_addr_data cmd17 [0:1] = '{
+        '{12'(`TXFIFO_ADDR),32'h51000000},
+        '{12'(`TXFIFO_ADDR),32'h00550000}
+    };
+
+    apb_addr_data cmd24 [0:1] = '{
+        '{12'(`TXFIFO_ADDR),32'h58000000},
+        '{12'(`TXFIFO_ADDR),32'h006F0000}
+    };
     clk_rst_gen # (
         .ClkPeriod (clk_cycle),
         .RstClkCycles (5)
@@ -180,7 +205,6 @@ module vip_apb_spi #() (
 
         apb_addr_data cmd [0:1] = '{default:'0};
        
-        logic [31:0] status;
         logic [31:0] bounds;
         rsp_found = 0;
         response = 0;
@@ -188,18 +212,21 @@ module vip_apb_spi #() (
         $display("\n\tStarting single command test");
         $display("\tCMD: %2d", CMD);
         
-        //TODO vector for address order depending on command
         case(CMD)
 
-            0: begin
-                cmd =  cmd0;
+            0: cmd =  cmd0;
+            
+            8: cmd = cmd8;
                 
-                
-            end
+            55: cmd = cmd55;
 
-            8: begin
-                cmd = cmd8;
-            end
+            41: cmd= acmd41;
+
+            58: cmd = cmd58;
+
+            17: cmd = cmd17;
+
+            24: cmd = cmd24;
 
             default: begin
                 $display("No Command Detected!");
@@ -208,7 +235,7 @@ module vip_apb_spi #() (
 
         // config registers of dut for TX to sd-card and RX from sd-card
        write_and_read_with_sd(cmd, data, addr);
-       
+
     endtask
 
     task automatic write_and_read_with_sd(apb_addr_data cmd [0:1], logic [31:0] data, logic [11:0] addr);
@@ -263,23 +290,29 @@ module vip_apb_spi #() (
 
     task automatic read_rxfifo();
         logic [11:0] addr = 0;
+        read_rsp = 0;
         // read values from DUT RXFIFO
         addr = 12'(`RXFIFO_ADDR);
         counter = 0;
-        read_data = 0;
-        i_apb.read(addr, read_data);
+        
+        i_apb.read(addr, fifodata);
         do begin
 
             @(negedge apb_mst.PCLK);
-            response = read_data[counter*8 +: 8];
+            response = fifodata[counter*8 +: 8];
             counter++;
             @(negedge apb_mst.PCLK);
 
             if (response == 8'h01) begin
-                rsp_found = 1;
+                read_rsp = 1;
                 $display("RSP Found!\n");
+                
             end
-        end while (counter != 'd3 );
+        end while (counter < 'd3 );
+       
+        @(posedge apb_mst.PCLK);
+        read_rsp = 0;
+        counter = 0;
     endtask
 
    
