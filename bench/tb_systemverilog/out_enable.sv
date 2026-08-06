@@ -3,14 +3,16 @@ module out_enable #() (
     input logic sclk,
     input logic chip_select,
     input logic mosi_i,
+    input logic out_en,
     output logic mosi_o
+
 );
 
 logic mosi_line;
 logic [5:0]counter;
 bit transfer_flag_d, transfer_flag_q;
 logic mosi_old;
-
+/* 
 always_ff @(posedge sclk, negedge rst_n) begin
     
     if (~rst_n) begin
@@ -23,8 +25,6 @@ always_ff @(posedge sclk, negedge rst_n) begin
 
         if ( transfer_flag_q & (counter < 'd46) ) begin
             counter++;
-        end else if (counter == 'd46) begin
-            counter = 0;
         end
 
         transfer_flag_q <= transfer_flag_d;
@@ -49,8 +49,14 @@ always_comb begin
     end else  begin
         mosi_line = mosi_i;
     end 
+end */
+always_comb begin
+    if (out_en) begin
+        mosi_line = mosi_i;
+    end else begin
+        mosi_line = 1;
+    end
 end
-        
 assign mosi_o = mosi_line;
 
 endmodule : out_enable
