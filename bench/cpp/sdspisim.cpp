@@ -37,7 +37,10 @@
 //		http://www.gnu.org/licenses/gpl.html
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
+// * 06-08-2026
+//		-> Added a check that verifies whether the 74 startup cycles occur.
+//		**Aapo Manni (aapo.manni@tuni.fi)**
+////////////////////////////////////////////////////////////////////////////////
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
@@ -238,11 +241,27 @@ int	SDSPISIM::operator()(const int csn, const int sck, const int mosi) {
 	*/
 
 	m_delay++;
+
+	//Startup cycle test
+	if (!m_last_sck && sck && csn && mosi)
+		m_startup_clock++;
+
+	if (m_startup_clock >= 74){
+		m_spi_ready = true;
+	}
+
+	if (!m_spi_ready && !csn){
+		fprintf(stderr, "NOT ENOUGH START UP CYCLES! (74)\n");
+		assert(m_spi_ready);
+	}
+
+
 	if (m_powerup_busy>0)
 		m_powerup_busy--;
 
 	if (csn) {
 		// {{{
+
 		m_delay = 0;
 		m_cmdidx= 0;
 		m_rspidx= 0;
