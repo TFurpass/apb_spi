@@ -209,13 +209,6 @@ void read(SDCMD cmd, int ln, unsigned *data) {
 	unsigned	len = ln/4;
 	uint64_t 	r,token;
 
-	/*
-	for(lglen = 4; (1<<lglen) < ln; lglen++)
-		;
-	set_aux(lglen << 16);
-
-	*/
-
 	r = sdcmd(cmd,false); //disable CSn toggle
 	assert (r == 0);
 
@@ -267,15 +260,6 @@ void write(SDCMD cmd, unsigned arg, int ln, unsigned *data) {
 
 	unsigned	len = ln/4;
 	uint64_t	r;
-
-	/*
-
-	for(lglen = 4; (1<<lglen) < ln; lglen++)
-		;
-	apb_write(REG_SPILEN, lglen << 16);
-	assert((1<<lglen) == ln);
-
-	*/
 
 	r = sdcmd(cmd,false);
 	assert(r == 0);
@@ -375,7 +359,19 @@ void read_cid(unsigned *data) {
 		}
 		// }}}
 	}
-	
+
+void start_up_cycles(void){
+
+	//10 bytes of 0xFF, CSn = high
+	for (int i = 0; i<10; i++){
+		apb_write(REG_SPILEN, BYTE);
+		apb_write(REG_TXFIFO, 0xFF000000);
+		apb_write(REG_STATUS, 0x00000022); //Write op, CSn high
+		wait_for_idle();
+
+	}
+}
+
 
 };
 
@@ -398,17 +394,9 @@ int	main(int argc, char **argv) {
 	//Initializes apb_spi_master
 	tb.apb_write(REG_CLKDIV,CLK_DIV);
 
-	//ADD START MOSI ACTION
+	//Send startup cycles
+	tb.start_up_cycles();
 
-	/*
-	
-	if (tb.apb_read(REG_STATUS)) {
-		printf("Waiting for the card assertion to be registered\n");
-		while(tb.apb_read(REG_STATUS)){;
-		}
-	}
-	
-	*/
 
 	// GO_IDLE
 	printf("_________________________________________________________________\n\n");

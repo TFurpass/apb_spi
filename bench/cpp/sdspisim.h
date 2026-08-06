@@ -61,10 +61,10 @@ class	SDSPISIM {
 	FILE		*m_dev;
 	unsigned long	m_devblocks;
 
-	int		m_last_sck, m_delay, m_mosi;
+	int		m_last_sck, m_delay, m_mosi, m_startup_clock;
 	bool		m_busy, m_debug, m_block_address, m_altcmd_flag,
 			m_syncd, m_host_supports_high_capacity, m_reading_data,
-			m_have_token;
+			m_have_token, m_spi_ready;
 
 	RESET_STATES	m_reset_state;
 
