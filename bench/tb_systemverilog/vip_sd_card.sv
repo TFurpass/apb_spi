@@ -40,12 +40,12 @@ module vip_sd_card #(
     } crc_val;
     crc_val crc;
 
-    logic [3:0] counter;
-    logic [7:0] data_packet;
+    logic [7:0] counter;
+    logic [47:0] data_packet;
     // when CRC is detected, rsp is asserted to enable response.
     bit rsp = 0;
     logic miso_line;
-    logic [3:0] i = 0;
+    logic [3:0] i;
     logic [7:0] R1_data = 8'h01;
 
     // does not take into account interruptions in sclk 
@@ -65,46 +65,43 @@ module vip_sd_card #(
 
 
     task miso_generate();
-        miso_line = 1;          
-        while (cs) begin
-            #2.5us;
-        end
-        @(posedge sclk);
+       
+      
         do begin
 
-            do begin 
+            while(~rsp) begin 
 
                 miso_line = 1;
                 @(posedge sclk);
-            end while(~rsp);
-           
+            end;
             
             // simulate delay, sd card is aligned with sclk in 8 bit counts for all data it sends and evaluates.
             for ( i = 0; i< 8; i++) begin
-
-                miso_line = @(negedge sclk) 1;
-                @(posedge sclk);
+                @(negedge sclk);
+                miso_line = 1;
+                
             end 
             
             // send response
             for ( i = 0; i< 8; i++) begin
-
-                miso_line = #TA R1_data[7-i];
-                @(posedge sclk);
-
+                
+                miso_line = R1_data[7-i];
+               @(negedge sclk);
             end
-            rsp = #TA 0;
+            @(negedge sclk);
+            i=0;
+            rsp = 0;
             
-        end while(!cs); // TODO TEST cs interrupt in the middle of transfer functionality
+        end while( rsp); // TODO TEST cs interrupt in the middle of transfer functionality
     endtask
 
     task automatic detect_CMD_and_CRC();
-
+        data_packet = 0;
         // wait for sclk since the sd card operates only when sclk is provided
         //@(posedge sclk);
 
         // cs and mosi should be high for powerup, when cs goes low, we read mosi
-        while (cs) begin
+        while (mosi) begin
             #2us;
         end
 
@@ -112,27 +109,29 @@ module vip_sd_card #(
             @(posedge sclk);
             data_packet[0] =  mosi;
             counter++; 
-            if (counter < 4'd8) begin
+            if (counter < 8'd48) begin
                 data_packet =  data_packet << 1;
                 
             end else begin
                 counter = 0;
-                crc = crc_val'(data_packet);
-                cmd = cmd_num'(data_packet);
+                data_packet[0] =  mosi;
+                crc = crc_val'(data_packet[7:0]);
+                cmd = cmd_num'(data_packet[47:40]);
 
                 if (cmd.name() != "") begin
                     $display("\n%s detected", cmd.name());
-
-                end else if (crc.name() != "") begin
+                end
+                if (crc.name() != "") begin
                     $display("CRC %2h for %s detected\n", crc, crc.name);
                     
                     rsp = 1;
                 end 
+                @(posedge sclk);
                 data_packet = 0;
                 
             end
             
-        end while (~cs);                                                                                                                                      
+        end while (~cs & ~rsp);                                                                                                                                      
     endtask
 
     assign miso = miso_line;
