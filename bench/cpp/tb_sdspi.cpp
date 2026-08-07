@@ -285,7 +285,7 @@ void write(SDCMD cmd, unsigned arg, int ln, unsigned *data) {
 
 	//Byte reordering for CRC calculation
 	uint8_t tx[ln];
-	for (int i = 0; i < 128; i++) {
+	for (int i = 0; i < len; i++) {
 		tx[4*i+0] = (data[i] >> 24) & 0xff;
 		tx[4*i+1] = (data[i] >> 16) & 0xff;
 		tx[4*i+2] = (data[i] >>  8) & 0xff;
