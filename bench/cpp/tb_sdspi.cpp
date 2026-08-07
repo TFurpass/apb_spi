@@ -84,7 +84,8 @@ typedef struct {
 #define R7				5
 
 //Register values
-#define CLK_DIV			0x7c
+#define CLK_DIV_INIT	0x7c
+#define CLK_DIV_DATA	0x1
 #define CMD_DATA_LEN	0x00300000 //48 bits
 #define BYTE			0x00080000 //8 bits
 #define DUT_BUF_LEN		0x00200000 //32 bits
@@ -214,7 +215,7 @@ void read(SDCMD cmd, int ln, unsigned *data) {
 
 	//Poll for token 0xFE
 	do{
-		apb_write(REG_SPILEN, BYTE); //1 byte reads
+		apb_write(REG_SPILEN, BYTE);
 		apb_write(REG_STATUS, READ_OP);
 
 		//Waiting for RX
@@ -272,9 +273,8 @@ void write(SDCMD cmd, unsigned arg, int ln, unsigned *data) {
 	//Wait for TX
 	wait_for_idle();
 
-
 	//Start block write
-	for (int i = 0; i < len; i++){ //fix static length!
+	for (int i = 0; i < len; i++){
 		apb_write(REG_SPILEN, DUT_BUF_LEN);
 		apb_write(REG_TXFIFO,data[i]);
 		apb_write(REG_STATUS, WRITE_OP);
@@ -283,7 +283,7 @@ void write(SDCMD cmd, unsigned arg, int ln, unsigned *data) {
 		wait_for_idle();
 	}
 
-	//Byte reordering
+	//Byte reordering for CRC calculation
 	uint8_t tx[ln];
 	for (int i = 0; i < 128; i++) {
 		tx[4*i+0] = (data[i] >> 24) & 0xff;
@@ -392,11 +392,10 @@ int	main(int argc, char **argv) {
 
 
 	//Initializes apb_spi_master
-	tb.apb_write(REG_CLKDIV,CLK_DIV);
+	tb.apb_write(REG_CLKDIV,CLK_DIV_INIT);
 
 	//Send startup cycles
 	tb.start_up_cycles();
-
 
 	// GO_IDLE
 	printf("_________________________________________________________________\n\n");
@@ -424,6 +423,8 @@ int	main(int argc, char **argv) {
 	printf("[OCR: 0x%08X]\n", resp = tb.read_ocr());
 	assert(resp == tb.OCR());
 
+	//Speed up the interface
+	tb.apb_write(REG_CLKDIV,CLK_DIV_DATA);
 
 	// Read the CSD register -> OPTIONAL
 	printf("_________________________________________________________________\n\n");
