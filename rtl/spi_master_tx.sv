@@ -39,7 +39,9 @@ module spi_master_tx
 
   enum logic [0:0] { IDLE, TRANSMIT } tx_CS, tx_NS;
 
-  assign sdo0 = (en_quad_in) ? data_int[28] : data_int[31];
+  //Draws MOSI high when write-operation is not in progress.
+  assign sdo0 = (tx_CS == IDLE) ? 1'b1 : (en_quad_in) ? data_int[28] : data_int[31];
+
   assign sdo1 = data_int[29];
   assign sdo2 = data_int[30];
   assign sdo3 = data_int[31];

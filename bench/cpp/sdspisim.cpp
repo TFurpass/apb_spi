@@ -612,7 +612,7 @@ int	SDSPISIM::operator()(const int csn, const int sck, const int mosi) {
 			// }}}
 		} else if (m_rspdly > 0) {
 			// {{{
-			//assert((m_dat_in&0x0ff) == 0x0ff);
+			assert((m_dat_in&0x0ff) == 0x0ff);
 			// A delay until a response is given
 			if (m_busy)
 				m_dat_out = 0;
@@ -620,17 +620,17 @@ int	SDSPISIM::operator()(const int csn, const int sck, const int mosi) {
 			// }}}
 		} else if (m_rspidx < SDSPI_RSPLEN) {
 			// {{{
-			//assert((m_dat_in&0x0ff) == 0x0ff);
+			assert((m_dat_in&0x0ff) == 0x0ff);
 			m_dat_out = m_rspbuf[m_rspidx++];
 			// }}}
 		} else if (m_blkdly > 0) {
 			// {{{
-			//assert((m_dat_in&0x0ff) == 0x0ff);
+			assert((m_dat_in&0x0ff) == 0x0ff);
 			m_blkdly--;
 			// }}}
 		} else if (m_blkidx < SDSPI_MAXBLKLEN) {
 			// {{{
-			//assert((m_dat_in&0x0ff) == 0x0ff);
+			assert((m_dat_in&0x0ff) == 0x0ff);
 			m_dat_out = m_block_buf[m_blkidx++];
 			// }}}
 		}
