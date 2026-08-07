@@ -48,7 +48,7 @@ module vip_apb_spi #() (
     };
 
     apb_addr_data cmd_apb_read_config [0:1] = '{
-        '{12'(`SPILEN_ADDR),32'h00200000},
+        '{12'(`SPILEN_ADDR),32'h00080000},
         '{12'(`STATUS_ADDR), 32'h0121}
     };
     apb_addr_data cmd0 [0:1] = '{
@@ -264,25 +264,6 @@ module vip_apb_spi #() (
         end
 
         wait_for_idle();
-        
-        for(integer i = 0; i< 2; i++) begin
-            data = cmd_apb_read_config[i].data;
-            addr = cmd_apb_read_config[i].addr;
-            i_apb.write(addr, data);
-
-            @(posedge apb_mst.PCLK);
-        end
-
-
-        // wait for RX state of the spi_master_controller so we know read from sd has begun
-        addr = 12'(`STATUS_ADDR);
-        while (read_data[7:0] != 8'h40 ) begin
-            i_apb.read(addr, read_data);
-            #5us;
-        end
-
-        // wait for read from sd-card to finish
-        wait_for_idle();
 
         // read values from DUT RXFIFO
         read_rxfifo();
@@ -290,16 +271,36 @@ module vip_apb_spi #() (
 
     task automatic read_rxfifo();
         logic [11:0] addr = 0;
+        logic [31:0] data;
+     
         read_rsp = 0;
-        // read values from DUT RXFIFO
-        addr = 12'(`RXFIFO_ADDR);
         counter = 0;
-        
-        i_apb.read(addr, fifodata);
+                
         do begin
+            
+            // config spilen for fifo read to be 8 bits
+            // write spiread to status register
+            for(integer i = 0; i< 2; i++) begin
+                data = cmd_apb_read_config[i].data;
+                addr = cmd_apb_read_config[i].addr;
+                i_apb.write(addr, data);
 
+                @(posedge apb_mst.PCLK);
+            end
+
+            // wait for RX state of the spi_master_controller so we know read from sd has begun
+            addr = 12'(`STATUS_ADDR);
+            while (read_data[7:0] != 8'h40 ) begin
+                i_apb.read(addr, read_data);
+                #5us;
+            end
+
+            // read from dut's rxfifo until a response has arrived
+            // TODO create a timeout with counter so the dut doesn't poll the response forever if card is not inserted
+            addr = 12'(`RXFIFO_ADDR);
+            i_apb.read(addr, fifodata);
             @(negedge apb_mst.PCLK);
-            response = fifodata[counter*8 +: 8];
+            response = fifodata[7:0];
             counter++;
             @(negedge apb_mst.PCLK);
 
@@ -308,12 +309,13 @@ module vip_apb_spi #() (
                 $display("RSP Found!\n");
                 
             end
-        end while (counter < 'd3 );
+        end while (~read_rsp);
        
         @(posedge apb_mst.PCLK);
         read_rsp = 0;
         counter = 0;
     endtask
 
+    assign rsp_found = read_rsp;
    
 endmodule : vip_apb_spi

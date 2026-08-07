@@ -4,7 +4,7 @@ module vip_apb_driver #(
     parameter int unsigned ADDR_W = 32'd32,
     parameter int unsigned DATA_W = 32'd32
 ) (
-  logic clk,
+  input logic clk,
   apb_interface.APB_Master apb_mst
 );
   assign apb_mst.PCLK = clk;
