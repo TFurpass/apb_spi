@@ -352,6 +352,7 @@ module vip_apb_spi #() (
                 end
 
                 ACMDR1: begin
+
                     if(fifodata[7:0] == 00) begin
                         acmd_check = 1;
                         read_rsp = 1;
@@ -392,6 +393,14 @@ module vip_apb_spi #() (
                     end
                 end
 
+                R7: begin
+                    if(counter == 4) begin
+                        if (fifodata[31:0] == 32'h000001AA) begin
+                            $display("Voltage accepted");
+                            $display("\nValue: %3h echoed in response.", fifodata[7:0]);
+                        end
+                    end
+                end
 
             endcase
 
