@@ -435,14 +435,9 @@ module vip_apb_spi #() (
                 R7: begin
                     if(counter == 5) begin
                         if (fifodata[31:0] == 32'h000001AA) begin
-<<<<<<< Updated upstream
-                            $display("Voltage accepted");
-                            $display("\nValue: %3h echoed in response.", fifodata[7:0]);
-=======
                             $display("\tVoltage accepted");
                             $display("\tValue: %3h echoed in response.", fifodata[8:0]);
                             read_rsp = 1;
->>>>>>> Stashed changes
                         end
                     end
                 end
