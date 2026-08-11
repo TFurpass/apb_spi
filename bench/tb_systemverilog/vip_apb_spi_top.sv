@@ -332,7 +332,7 @@ module vip_apb_spi #() (
                 i_apb.read(addr, read_data);
                 #5us;
             end
-            
+            wait_for_idle();
             // TODO create a timeout with counter so the dut doesn't poll the response forever if card is not inserted
             addr = 12'(`RXFIFO_ADDR);
             i_apb.read(addr, fifodata);
@@ -342,7 +342,7 @@ module vip_apb_spi #() (
                 response = fifodata[7:0];
             end else begin
                 counter++;
-                fifodata = fifodata << 8;
+                //fifodata = fifodata << 8;
             end
 
             @(negedge apb_mst.PCLK);
