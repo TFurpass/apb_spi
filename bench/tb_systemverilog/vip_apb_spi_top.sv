@@ -306,9 +306,9 @@ module vip_apb_spi #() (
 
             if (response == 8'h01) begin
                 read_rsp = 1;
-                $display("RSP Found!\n");
-                
+                $display("RSP: 0x%02h\n",response);
             end
+
         end while (~read_rsp);
        
         @(posedge apb_mst.PCLK);
@@ -317,5 +317,6 @@ module vip_apb_spi #() (
     endtask
 
     assign rsp_found = read_rsp;
+
    
 endmodule : vip_apb_spi
