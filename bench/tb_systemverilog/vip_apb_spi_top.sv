@@ -29,6 +29,8 @@ module vip_apb_spi #() (
     logic [31:0] read_data = 0;
     logic [31:0] fifodata = 0;
 
+    
+
     // TODO expand on response type logic
     typedef enum logic[2:0] {
         R1,
@@ -37,6 +39,9 @@ module vip_apb_spi #() (
         ACMDR1,
         R1_read_block 
     } rsp_type;
+
+    rsp_type r_type;
+    
 
     typedef struct packed {
         logic [11:0] addr;
@@ -263,7 +268,7 @@ module vip_apb_spi #() (
                 $display("No Command Detected!");
             end
         endcase
-
+        r_type = rsp_for_cmd;
         // config registers of dut for TX to sd-card and RX from sd-card
        write_and_read_with_sd(cmd, data, addr, rsp_for_cmd);
 
@@ -310,7 +315,7 @@ module vip_apb_spi #() (
         
         // read from dut's rxfifo until a response has arrived
         do begin
-            
+            wait_for_idle();
             // config spilen for fifo read to be 8 bits
             // write spiread to status register
             for(integer i = 0; i< 2; i++) begin
