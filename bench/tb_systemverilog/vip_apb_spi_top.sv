@@ -28,6 +28,7 @@ module vip_apb_spi #() (
     logic [7:0] response;
     logic [31:0] read_data = 0;
     logic [31:0] fifodata = 0;
+    logic acmd_no_rsp = 0;
 
     
 
@@ -128,7 +129,7 @@ module vip_apb_spi #() (
         logic no_rsp;
         for(logic[3:0] i = 0; i < 3; i++) begin
 
-            CMD(0, no_rsp);
+            CMD(0);
             if(rsp_found) begin
                 $display("\n\tCARD DETECTED\n");
                 card_found = 1;
@@ -213,17 +214,20 @@ module vip_apb_spi #() (
         read_data = 0;
     endtask
 
-    task automatic CMD (logic [7:0] CMD, output logic acmd_no_rsp);
+    task automatic CMD (logic [7:0] CMD);
         
         logic [31:0] data = 0;
         logic [11:0] addr;
-        rsp_type rsp_for_cmd = R1;
+        rsp_type rsp_for_cmd;
         apb_addr_data cmd [0:1] = '{default:'0};
+
+        logic loopcmd55 = 0;
+        logic [7:0] which_cmd = CMD;
        
         logic [31:0] bounds;
         rsp_found = 0;
         response = 0;
-
+        
         $display("\n\tStarting single command test");
         $display("\tCMD: %2d", CMD);
         
@@ -245,8 +249,8 @@ module vip_apb_spi #() (
             end
 
             41: begin
-                 cmd= acmd41;
-                 rsp_for_cmd = ACMDR1;
+                cmd= acmd41;
+                rsp_for_cmd = ACMDR1;
             end
 
             58: begin
@@ -268,48 +272,73 @@ module vip_apb_spi #() (
                 $display("No Command Detected!");
             end
         endcase
+
         r_type = rsp_for_cmd;
+
         // config registers of dut for TX to sd-card and RX from sd-card
-       write_and_read_with_sd(cmd, data, addr, rsp_for_cmd);
+        write_and_read_with_sd(cmd, data, addr, rsp_for_cmd, loopcmd55);
+        
+        if(loopcmd55) acmd_no_rsp = 1;
 
     endtask
 
-    task automatic write_and_read_with_sd(apb_addr_data cmd [0:1], logic [31:0] data, logic [11:0] addr, rsp_type rsp_for_cmd);
-        for(integer i= 0; i< 4; i++) begin
+    task automatic write_and_read_with_sd(apb_addr_data cmd [0:1], logic [31:0] data, logic [11:0] addr, rsp_type rsp_for_cmd, output logic loopcmd55);
+        // flag set if cmd is acmd type
+        logic is_acmd = 0;
+        // flag tells if card is busy
+        logic acmd_check = 0;
+        
+            for(integer i= 0; i< 4; i++) begin
 
-            // waiting for idle state at the start and everytime an spi write or read is issued through state_register
-            if(i == 2 | i == 0 ) begin
-                wait_for_idle();
+                // waiting for idle state at the start and everytime an spi write or read is issued through state_register
+                if(i == 2 | i == 0 ) begin
+                    wait_for_idle();
+                end
+
+                if(i == 2) begin 
+                    // write fifos with data before issuing write
+                    for(integer j = 0; j< 2; j++) begin
+                        data = cmd[j].data;
+                        addr = cmd[j].addr;
+                        i_apb.write(addr, data);
+                        @(posedge apb_mst.PCLK);
+                    end
+                end 
+
+                data = cmd_apb_write_config[i].data;
+                addr = cmd_apb_write_config[i].addr;
+                i_apb.write(addr, data);
+
+                @(posedge apb_mst.PCLK);
             end
 
-            if(i == 2) begin 
-                // write fifos with data before issuing write
-                for(integer j = 0; j< 2; j++) begin
-                    data = cmd[j].data;
-                    addr = cmd[j].addr;
-                    i_apb.write(addr, data);
-                    @(posedge apb_mst.PCLK);
-                end
-            end 
+            wait_for_idle();
 
-            data = cmd_apb_write_config[i].data;
-            addr = cmd_apb_write_config[i].addr;
-            i_apb.write(addr, data);
+            // read values from DUT RXFIFO
+            read_rxfifo(rsp_for_cmd, acmd_check);
 
             @(posedge apb_mst.PCLK);
-        end
 
-        wait_for_idle();
+            if(rsp_for_cmd == ACMDR1) begin
+                is_acmd = 1;
+            end
 
-        // read values from DUT RXFIFO
-        read_rxfifo(rsp_for_cmd);
+            @(posedge apb_mst.PCLK);
+
+            // if acmd41 gets busy from sd card, loop back cmd55
+            if(~acmd_check && is_acmd) begin
+                loopcmd55 = 1;
+            end
+
+
     endtask
 
     // TODO expand on response type logic
-    task automatic read_rxfifo(rsp_type rsp_for_cmd);
+    task automatic read_rxfifo(rsp_type rsp_for_cmd, output logic acmd_check);
         logic [11:0] addr = 0;
         logic [31:0] data;
-        logic acmd_check = 0;
+        logic valid_data = 0;
+        acmd_check = 0;
         read_rsp = 0;
         counter = 0;
         
@@ -338,11 +367,11 @@ module vip_apb_spi #() (
             i_apb.read(addr, fifodata);
             @(negedge apb_mst.PCLK);
 
-            if(response != 8'h01) begin
-                response = fifodata[7:0];
+            // first zero indicates start of response
+            if(fifodata[7] == 0 && ~valid_data) begin
+                valid_data = 1;
             end else begin
                 counter++;
-                //fifodata = fifodata << 8;
             end
 
             @(negedge apb_mst.PCLK);
@@ -350,9 +379,11 @@ module vip_apb_spi #() (
             case(rsp_for_cmd)
                 R1: begin
 
-                    if ( response == 8'h01) begin
+                    if (fifodata[7:0] == 8'h01) begin
                         read_rsp = 1;
                         $display("RSP Found! RSP: %2h\n", response);
+                    end else if ( fifodata[7:0] == 8'h00) begin
+                        read_rsp = 1;
                     end
                 end
 
@@ -361,13 +392,16 @@ module vip_apb_spi #() (
                     if(fifodata[7:0] == 00) begin
                         acmd_check = 1;
                         read_rsp = 1;
+                        $display("acmd found");
                     end
+                    if(fifodata[7:0] == 01) read_rsp = 1;
                 end
 
                 R3: begin
                     
                     // when fifo_data has OCR data, check the values
-                    if(counter == 4) begin
+                    // it takes 40 bits to get data i.e. when counter is >5 (5*8=40) fifodata is valid
+                    if(counter == 5) begin
                         
                         // index 31 busy bit not needed for spi because of R1 but could/should be implemented for sdio or sd bus
 
@@ -399,10 +433,16 @@ module vip_apb_spi #() (
                 end
 
                 R7: begin
-                    if(counter == 4) begin
+                    if(counter == 5) begin
                         if (fifodata[31:0] == 32'h000001AA) begin
+<<<<<<< Updated upstream
                             $display("Voltage accepted");
                             $display("\nValue: %3h echoed in response.", fifodata[7:0]);
+=======
+                            $display("\tVoltage accepted");
+                            $display("\tValue: %3h echoed in response.", fifodata[8:0]);
+                            read_rsp = 1;
+>>>>>>> Stashed changes
                         end
                     end
                 end
