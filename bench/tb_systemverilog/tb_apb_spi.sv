@@ -22,7 +22,7 @@ module tb_apb_spi #() ();
     logic spi_clk, mosi, miso, csn;
     logic DUT_sd_out;
     logic out_en;
-
+    logic acmd_no_rsp;
     bit card_found;
 
     // TODO correct bit widths
@@ -85,7 +85,7 @@ module tb_apb_spi #() ();
             fork
                 i_sd_card.miso_generate();
                 i_sd_card.detect_CMD_and_CRC();
-                i_vip.CMD(cmd_num[i]);
+                i_vip.CMD(cmd_num[i], acmd_no_rsp);
             join
         end
         
