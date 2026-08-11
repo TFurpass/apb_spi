@@ -30,12 +30,12 @@ module vip_apb_spi #() (
     logic [31:0] fifodata = 0;
 
     // TODO expand on response type logic
-    typedef logic[2:0] enum = {
-        R1 = 0,
-        R3 = 1,
-        R7 = 2,
-        ACMDR1 = 3,
-        R1_read_block = 4
+    typedef enum logic[2:0] {
+        R1,
+        R3,
+        R7,
+        ACMDR1,
+        R1_read_block 
     } rsp_type;
 
     typedef struct packed {
@@ -120,10 +120,10 @@ module vip_apb_spi #() (
     
     task automatic detect_card(output bit card_found);
 
-
+        logic no_rsp;
         for(logic[3:0] i = 0; i < 3; i++) begin
 
-            CMD(0);
+            CMD(0, no_rsp);
             if(rsp_found) begin
                 $display("\n\tCARD DETECTED\n");
                 card_found = 1;
@@ -212,7 +212,7 @@ module vip_apb_spi #() (
         
         logic [31:0] data = 0;
         logic [11:0] addr;
-        rsp_type rsp_for_cmd = 0;
+        rsp_type rsp_for_cmd = R1;
         apb_addr_data cmd [0:1] = '{default:'0};
        
         logic [31:0] bounds;
@@ -265,7 +265,7 @@ module vip_apb_spi #() (
         endcase
 
         // config registers of dut for TX to sd-card and RX from sd-card
-       write_and_read_with_sd(cmd, data, addr);
+       write_and_read_with_sd(cmd, data, addr, rsp_for_cmd);
 
     endtask
 
@@ -378,12 +378,12 @@ module vip_apb_spi #() (
                         end
                         
                         // 1.8 V capability (not supported by SPI)
-                        if(fifodata[28:25] = 4'hF) begin
+                        if(fifodata[28:25] == 4'hF) begin
                             $display("low_voltage_accept");
                         end
 
                         // voltage range
-                        if(fifodata[24:16] = 9'h1FF) begin
+                        if(fifodata[24:16] == 9'h1FF) begin
                             $display("Voltage range: 2.7-3.6 V supported");
                         end
 
