@@ -18,9 +18,17 @@ VDEFS = \
 # Shows parameter values in waveform
 # Hierarchical verilation design is processed in a modular way (not too beneficial here, more beneficial for large rtl)
 # compiles the generated C++ model
-# enaböes loop unrolling for performance, sets maximum limit to 256
+# enables loop unrolling for performance, sets maximum limit to 256
 # creates build directory
 # build is done using all cpu cores \nproc returns number of available cores
+
+
+#Create SD-card image
+.PHONY:
+image:
+	dd if=/dev/zero of=sdcard.img bs=512 count=131072
+	mkfs.fat -F 16 sdcard.img
+
 VFLAGS = \
 	--timing \
 	--trace-fst \
@@ -38,6 +46,9 @@ all: lint verilate simv \
 # --lint-only runs verilator as a linter
 # --timing enables timing construct support
 # --top-module sets top module as tb_apb_spi
+
+
+
 .PHONY: lint
 lint:
 	verilator \

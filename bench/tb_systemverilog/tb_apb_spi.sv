@@ -81,6 +81,7 @@ module tb_apb_spi #() ();
             
         join
         
+
         for(integer i = 0; i< 7; i++) begin
             fork
                 i_sd_card.miso_generate();
@@ -88,9 +89,10 @@ module tb_apb_spi #() ();
                 i_vip.CMD(cmd_num[i]);
             join
         end
+
         
         
-/* 
+/*
         // TODO add commands
         if(card_found) begin
             fork

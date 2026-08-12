@@ -20,7 +20,7 @@ module vip_apb_spi #() (
     localparam time clk_cycle = 10ns;
     localparam longint unsigned SimCycles = 'd500_000;
     logic clk, rst_n;
-    logic [7:0] counter = 0;
+    logic [31:0] counter = 0;
 
     integer i;
     logic rsp_found;
@@ -30,6 +30,7 @@ module vip_apb_spi #() (
     logic [31:0] fifodata = 0;
     logic acmd_no_rsp = 0;
 
+    bit t;
     
 
     // TODO expand on response type logic
@@ -38,7 +39,7 @@ module vip_apb_spi #() (
         R3,
         R7,
         ACMDR1,
-        R1_read_block 
+        block_read 
     } rsp_type;
 
     rsp_type r_type;
@@ -50,57 +51,59 @@ module vip_apb_spi #() (
     } apb_addr_data;
 
     apb_addr_data init_apb [0:3]='{
-        '{12'(`CLKDIV_ADDR),32'h1F4},
-        '{12'(`SPILEN_ADDR),32'h00500000},
-        '{12'(`TXFIFO_ADDR),32'hFFFFFFFF},
+        '{12'(`CLKDIV_ADDR), 32'h1F4},
+        '{12'(`SPILEN_ADDR), 32'h00500000},
+        '{12'(`TXFIFO_ADDR), 32'hFFFFFFFF},
         '{12'(`STATUS_ADDR), 32'h02}
     };
    
     apb_addr_data cmd_apb_write_config [0:3] = '{
         '{12'(`CLKDIV_ADDR), 32'h1F4},
         '{12'(`SPILEN_ADDR), 32'h00300000},
-        '{12'(`STATUS_ADDR),32'h0122},
-        '{12'(`SPILEN_ADDR),32'h00300000}
+        '{12'(`STATUS_ADDR), 32'h0122},
+        '{12'(`SPILEN_ADDR), 32'h00300000}
     };
 
     apb_addr_data cmd_apb_read_config [0:1] = '{
-        '{12'(`SPILEN_ADDR),32'h00080000},
+        '{12'(`SPILEN_ADDR), 32'h00080000},
         '{12'(`STATUS_ADDR), 32'h0121}
     };
     apb_addr_data cmd0 [0:1] = '{
-        '{12'(`TXFIFO_ADDR),32'h40000000},
-        '{12'(`TXFIFO_ADDR),32'h00950000}
+        '{12'(`TXFIFO_ADDR), 32'h40000000},
+        '{12'(`TXFIFO_ADDR), 32'h00950000}
     };
 
     apb_addr_data cmd8 [0:1] = '{
-        '{12'(`TXFIFO_ADDR),32'h48000001},
-        '{12'(`TXFIFO_ADDR),32'hAA870000}
+        '{12'(`TXFIFO_ADDR), 32'h48000001},
+        '{12'(`TXFIFO_ADDR), 32'hAA870000}
     };
 
     apb_addr_data cmd55 [0:1] = '{
-        '{12'(`TXFIFO_ADDR),32'h77000000},
-        '{12'(`TXFIFO_ADDR),32'h00650000}
+        '{12'(`TXFIFO_ADDR), 32'h77000000},
+        '{12'(`TXFIFO_ADDR), 32'h00650000}
     };
     
     apb_addr_data acmd41 [0:1] = '{
-        '{12'(`TXFIFO_ADDR),32'h69400000},
-        '{12'(`TXFIFO_ADDR),32'h00770000}
+        '{12'(`TXFIFO_ADDR), 32'h69400000},
+        '{12'(`TXFIFO_ADDR), 32'h00770000}
     };
 
     apb_addr_data cmd58 [0:1] = '{
-        '{12'(`TXFIFO_ADDR),32'h7A000000},
-        '{12'(`TXFIFO_ADDR),32'h00FD0000}
+        '{12'(`TXFIFO_ADDR), 32'h7A000000},
+        '{12'(`TXFIFO_ADDR), 32'h00FD0000}
     };
 
     apb_addr_data cmd17 [0:1] = '{
-        '{12'(`TXFIFO_ADDR),32'h51000000},
-        '{12'(`TXFIFO_ADDR),32'h00550000}
+        '{12'(`TXFIFO_ADDR), 32'h51000000},
+        '{12'(`TXFIFO_ADDR), 32'h00550000}
     };
 
     apb_addr_data cmd24 [0:1] = '{
-        '{12'(`TXFIFO_ADDR),32'h58000000},
-        '{12'(`TXFIFO_ADDR),32'h006F0000}
+        '{12'(`TXFIFO_ADDR), 32'h58000000},
+        '{12'(`TXFIFO_ADDR), 32'h006F0000}
     };
+
+    
 
     clk_rst_gen # (
         .ClkPeriod (clk_cycle),
@@ -149,7 +152,7 @@ module vip_apb_spi #() (
         $display("\n\tpowerup start\n");
         counter = 0;
 
-        while (counter < 'd80) begin
+        while (counter < 80) begin
             @(posedge sclk);
             counter++;
         end
@@ -260,7 +263,7 @@ module vip_apb_spi #() (
 
             17: begin
                 cmd = cmd17;
-                rsp_for_cmd = R1_read_block;
+                rsp_for_cmd = block_read;
             end
 
             24: begin
@@ -276,17 +279,11 @@ module vip_apb_spi #() (
         r_type = rsp_for_cmd;
 
         // config registers of dut for TX to sd-card and RX from sd-card
-        write_and_read_with_sd(cmd, data, addr, rsp_for_cmd, loopcmd55);
+        write_and_read_with_sd(cmd, data, addr, rsp_for_cmd);
         
-        if(loopcmd55) acmd_no_rsp = 1;
-
     endtask
 
-    task automatic write_and_read_with_sd(apb_addr_data cmd [0:1], logic [31:0] data, logic [11:0] addr, rsp_type rsp_for_cmd, output logic loopcmd55);
-        // flag set if cmd is acmd type
-        logic is_acmd = 0;
-        // flag tells if card is busy
-        logic acmd_check = 0;
+    task automatic write_and_read_with_sd(apb_addr_data cmd [0:1], logic [31:0] data, logic [11:0] addr, rsp_type rsp_for_cmd);
         
             for(integer i= 0; i< 4; i++) begin
 
@@ -296,7 +293,7 @@ module vip_apb_spi #() (
                 end
 
                 if(i == 2) begin 
-                    // write fifos with data before issuing write
+                    // write fifos with data before issuing cmd transfer to the sd card
                     for(integer j = 0; j< 2; j++) begin
                         data = cmd[j].data;
                         addr = cmd[j].addr;
@@ -315,30 +312,17 @@ module vip_apb_spi #() (
             wait_for_idle();
 
             // read values from DUT RXFIFO
-            read_rxfifo(rsp_for_cmd, acmd_check);
-
-            @(posedge apb_mst.PCLK);
-
-            if(rsp_for_cmd == ACMDR1) begin
-                is_acmd = 1;
-            end
-
-            @(posedge apb_mst.PCLK);
-
-            // if acmd41 gets busy from sd card, loop back cmd55
-            if(~acmd_check && is_acmd) begin
-                loopcmd55 = 1;
-            end
-
+            read_rxfifo(rsp_for_cmd);
 
     endtask
 
     // TODO expand on response type logic
-    task automatic read_rxfifo(rsp_type rsp_for_cmd, output logic acmd_check);
+    task automatic read_rxfifo(rsp_type rsp_for_cmd);
         logic [11:0] addr = 0;
         logic [31:0] data;
         logic valid_data = 0;
-        acmd_check = 0;
+        bit token_found = 0;
+        
         read_rsp = 0;
         counter = 0;
         
@@ -381,8 +365,9 @@ module vip_apb_spi #() (
 
                     if (fifodata[7:0] == 8'h01) begin
                         read_rsp = 1;
-                        $display("RSP Found! RSP: %2h\n", response);
+                        $display("RSP Found! RSP: %2h in IDLE\n", fifodata[7:0]);
                     end else if ( fifodata[7:0] == 8'h00) begin
+                        $display("RSP Found! Not in IDLE");
                         read_rsp = 1;
                     end
                 end
@@ -390,7 +375,7 @@ module vip_apb_spi #() (
                 ACMDR1: begin
 
                     if(fifodata[7:0] == 00) begin
-                        acmd_check = 1;
+                        acmd_no_rsp = 1;
                         read_rsp = 1;
                         $display("acmd found");
                     end
@@ -402,7 +387,7 @@ module vip_apb_spi #() (
                     // when fifo_data has OCR data, check the values
                     // it takes 40 bits to get data i.e. when counter is >5 (5*8=40) fifodata is valid
                     if(counter == 5) begin
-
+                        
                         // index 31 busy bit not needed for spi because of R1 but could/should be implemented for sdio or sd bus
 
                         // CS bit, capacity status
@@ -442,6 +427,25 @@ module vip_apb_spi #() (
                     end
                 end
 
+                block_read: begin
+                    if (fifodata[7:0] == 8'h00) begin
+                        $display("RSP Found! RSP: %2h\n", response);
+
+                        // keep reading until token received from fifo
+                        if(fifodata[7:0] == 8'hFE) token_found = 1;
+
+                        t= token_found;
+                        // if token has not arrived, keep counter at 0
+                        if(~token_found) counter = 0;
+
+                        // when counter reaches 65, 512 bytes of data have been read (64*8=512) Note: needs extra count before the data is in fifo
+                        if(counter == 513) begin
+                            read_rsp = 1;
+                        end
+                        if((counter % 31 == 0) && token_found) $display("%8h", fifodata);
+                    end 
+                end
+
             endcase
 
         end while (~read_rsp);
@@ -452,6 +456,14 @@ module vip_apb_spi #() (
         response = 0;
     endtask
 
+    task automatic write_read_test();
+        logic [31:0] data;
+
+        for (integer i = 0; i< 64; i++)begin
+            data = $urandom();
+            //i_apb.write(`TXFIFO_ADDR, data);
+            end
+    endtask
     assign rsp_found = read_rsp;
    
 endmodule : vip_apb_spi

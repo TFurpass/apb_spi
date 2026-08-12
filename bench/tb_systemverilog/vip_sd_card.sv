@@ -1,7 +1,8 @@
 //TODO
 // -> FIX magic numbers
-// -> Re-structure frames
+// -> FIX static lengths
 // -> CHECK constants (CMDs, OCR, others) from here and tb itself
+// -> Create function for CRC calculation -> OPTIONAL
 
 
 
@@ -15,10 +16,24 @@ module vip_sd_card #(
 
     import sd_reg_pkg::ocr_t;
     ocr_t ocr = '{1'b0, 1'b0, 1'b0, 4'b0, 9'h1FF, 7'hFF, 1'b0, 7'hFF};
-    /* TODO
-    - add commands
-    - test cs interrupt in the middle of transfer functionality
-     */
+
+
+   //Open generated sd-card image
+    integer fd;
+    byte sector_buf[512];
+    initial begin
+        fd = $fopen("sdcard.img", "r+b");
+        if (fd == 0) begin
+        $display("Failed to open disk image!");
+        $finish;
+        end
+
+        //Read initial values of the image to buffer
+        else begin
+            $fread(sector_buf,fd);
+        end
+
+    end
 
 
     localparam time TA = 100ns; // after clk edge, when values are driven
@@ -29,18 +44,20 @@ module vip_sd_card #(
         logic [7:0] crc;
         logic [39:0] response;   // response bytes to send on MISO
         logic [2:0] resp_len;    // number of response bytes
+        bit read_block;
+        bit write_block;
     } sd_cmd_t;
 
     sd_cmd_t rx_cmd;
 
     localparam sd_cmd_t SD_CMDS[7] = '{
-        '{8'h40, 8'h95, 40'h01,         1}, // CMD0 -> R1=0x01
-        '{8'h48, 8'h87, 40'h01000001AA, 5}, // CMD8 -> R7
-        '{8'h77, 8'h65, 40'h01,         1}, // CMD55
-        '{8'h69, 8'h77, 40'h00,         1}, // ACMD41
-        '{8'h7A, 8'hFD, 40'h0040FF8000, 5}, // CMD58 -> R3 -> CHECK IF THIS IS CORRECT!
-        '{8'h51, 8'h55, 40'h00,         1}, // CMD17
-        '{8'h58, 8'h6F, 40'h00,         1}  // CMD24
+        '{8'h40, 8'h95, 40'h01,         1,  0,  0}, // CMD0 -> R1=0x01
+        '{8'h48, 8'h87, 40'h01000001AA, 5,  0,  0}, // CMD8 -> R7
+        '{8'h77, 8'h65, 40'h01,         1,  0,  0}, // CMD55
+        '{8'h69, 8'h77, 40'h00,         1,  0,  0}, // ACMD41
+        '{8'h7A, 8'hFD, 40'h0040FF8000, 5,  0,  0}, // CMD58 -> R3 -> CHECK IF THIS IS CORRECT!
+        '{8'h51, 8'h55, 40'h00,         1,  1,  0}, // CMD17 BLOCK READ
+        '{8'h58, 8'h6F, 40'h00,         1,  0,  1}  // CMD24 BLOCK WRITE
     };
 
     //CMD names
@@ -64,6 +81,10 @@ module vip_sd_card #(
 
     logic [39:0] tx;
 
+    logic [7:0] block_byte;
+    int byte_idx;
+    int bit_cnt;
+
 
     // does not take into account interruptions in sclk 
     task automatic powerup(logic mosi, logic cs, logic sclk);
@@ -82,12 +103,12 @@ module vip_sd_card #(
 
 
     task miso_generate();
+    // TODO Add block read and write action
         do begin
             while(~rsp) begin 
                 miso_line = 1;
                 @(posedge sclk);
             end;
-
 
             // simulate delay, sd card is aligned with sclk in 8 bit counts for all data it sends and evaluates.
             for ( i = 0; i< 8; i++) begin
@@ -95,15 +116,32 @@ module vip_sd_card #(
                 miso_line = 1;
             end
 
+            // STUBS for block read and block write
+            if (rx_cmd.read_block) begin
+                $display("START BLOCK READ!");
+                //SEND TOKEN
+                //SEND 512bytes of data
+                //SEND CRC
+            end
 
-            //Aling response to the top
-            tx = rx_cmd.response << (40-rx_cmd.resp_len*8);
+            else if (rx_cmd.write_block) begin
+                $display("START BLOCK WRITE!");
+                //RECEIVE TOKEN
+                //BLOCK WRITING ACTION..
+                //CRC
+            end
 
-            //Send response
-            for ( i = 0; i< rx_cmd.resp_len * 8; i++) begin
-                miso_line = tx[39];
-                tx = tx << 1;
-               @(negedge sclk);
+
+
+            else begin // TODO edit serializer to be more universal
+                //Aling response to the top
+                tx = rx_cmd.response << (40-rx_cmd.resp_len*8);
+                //Send response
+                for ( i = 0; i< rx_cmd.resp_len * 8; i++) begin
+                    miso_line = tx[39];
+                    tx = tx << 1;
+                @(negedge sclk);
+                end
             end
             i=0;
             rsp = 0;
