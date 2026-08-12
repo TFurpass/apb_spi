@@ -30,6 +30,7 @@ module vip_apb_spi #() (
     logic [31:0] fifodata = 0;
     logic acmd_no_rsp = 0;
 
+    bit t;
     
 
     // TODO expand on response type logic
@@ -433,6 +434,7 @@ module vip_apb_spi #() (
                         // keep reading until token received from fifo
                         if(fifodata[7:0] == 8'hFE) token_found = 1;
 
+                        t= token_found;
                         // if token has not arrived, keep counter at 0
                         if(~token_found) counter = 0;
 
@@ -440,7 +442,7 @@ module vip_apb_spi #() (
                         if(counter == 513) begin
                             read_rsp = 1;
                         end
-                        if(counter % 31 == 0) $display("%8h", fifodata);
+                        if((counter % 31 == 0) && token_found) $display("%8h", fifodata);
                     end 
                 end
 
