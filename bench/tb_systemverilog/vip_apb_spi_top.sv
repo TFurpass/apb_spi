@@ -102,6 +102,8 @@ module vip_apb_spi #() (
         '{12'(`TXFIFO_ADDR),32'h006F0000}
     };
 
+    
+
     clk_rst_gen # (
         .ClkPeriod (clk_cycle),
         .RstClkCycles (5)
@@ -362,8 +364,9 @@ module vip_apb_spi #() (
 
                     if (fifodata[7:0] == 8'h01) begin
                         read_rsp = 1;
-                        $display("RSP Found! RSP: %2h\n", response);
+                        $display("RSP Found! RSP: %2h in IDLE\n", response);
                     end else if ( fifodata[7:0] == 8'h00) begin
+                        $display("RSP Found! Not in IDLE")
                         read_rsp = 1;
                     end
                 end
@@ -434,7 +437,7 @@ module vip_apb_spi #() (
                         if(~token_found) counter = 0;
 
                         // when counter reaches 65, 512 bytes of data have been read (64*8=512) Note: needs extra count before the data is in fifo
-                        if(counter == 65) begin
+                        if(counter == 513) begin
                             read_rsp = 1;
                         end
                         if(counter % 31 == 0) $display("%8h", fifodata);
