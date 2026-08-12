@@ -1,6 +1,7 @@
 //TODO
 // -> FIX magic numbers
 // -> Re-structure frames
+// -> CHECK constants (CMDs, OCR, others) from here and tb itself
 
 
 
@@ -37,20 +38,20 @@ module vip_sd_card #(
         '{8'h48, 8'h87, 40'h01000001AA, 5}, // CMD8 -> R7
         '{8'h77, 8'h65, 40'h01,         1}, // CMD55
         '{8'h69, 8'h77, 40'h00,         1}, // ACMD41
-        '{8'h7A, 8'hFD, 40'h0040000000, 5}, // CMD58 -> R3
+        '{8'h7A, 8'hFD, 40'h0040FF8000, 5}, // CMD58 -> R3 -> CHECK IF THIS IS CORRECT!
         '{8'h51, 8'h55, 40'h00,         1}, // CMD17
         '{8'h58, 8'h6F, 40'h00,         1}  // CMD24
     };
 
     //CMD names
     typedef enum logic [7:0] {
-        CMD0 = 8'h40, 
-        CMD8 = 8'h48,
-        CMD55 = 8'h77,
-        ACMD41 = 8'h69,
-        CMD58 = 8'h7A,
-        CMD17 = 8'h51,
-        CMD24 = 8'h58
+        CMD0    = 8'h40,
+        CMD8    = 8'h48,
+        CMD55   = 8'h77,
+        ACMD41  = 8'h69,
+        CMD58   = 8'h7A,
+        CMD17   = 8'h51,
+        CMD24   = 8'h58
         } cmd_num;
     cmd_num cmd;
 
@@ -59,7 +60,7 @@ module vip_sd_card #(
     // when CRC is detected, rsp is asserted to enable response.
     bit rsp = 0;
     logic miso_line;
-    logic [3:0] i;
+    integer i;
 
     logic [39:0] tx;
 
@@ -87,11 +88,13 @@ module vip_sd_card #(
                 @(posedge sclk);
             end;
 
+
             // simulate delay, sd card is aligned with sclk in 8 bit counts for all data it sends and evaluates.
             for ( i = 0; i< 8; i++) begin
                 @(negedge sclk);
                 miso_line = 1;
             end
+
 
             //Aling response to the top
             tx = rx_cmd.response << (40-rx_cmd.resp_len*8);
@@ -117,14 +120,12 @@ module vip_sd_card #(
             #2us;
         end
 
-
-        //CMD and CRC reading -> CHECK!
+        //CMD and CRC reading
         do begin @(posedge sclk);
             data_packet[0] =  mosi;
             counter++; 
             if (counter < 8'd48) begin
                 data_packet =  data_packet << 1;
-                
             end
             else begin
                 counter = 0;
@@ -136,22 +137,17 @@ module vip_sd_card #(
                 foreach (SD_CMDS[i]) begin
                     if (SD_CMDS[i].cmd == rx_cmd.cmd &&
                         SD_CMDS[i].crc == rx_cmd.crc) begin
-
                         //Copy the matching command from the table
                         rx_cmd = SD_CMDS[i];
                         cmd = cmd_num'(rx_cmd.cmd);
                         $display("%s detected, CRC: %2h\n", cmd.name(),rx_cmd.crc);
                         rsp = 1;
-
                     end
                 end
                 @(posedge sclk);
                 data_packet = 0;
-                
             end
-            
         end while (~cs & ~rsp);
-
     endtask
 
     assign miso = miso_line;
