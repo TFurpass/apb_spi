@@ -38,7 +38,7 @@ module vip_apb_spi #() (
         R3,
         R7,
         ACMDR1,
-        R1_read_block 
+        block_read 
     } rsp_type;
 
     rsp_type r_type;
@@ -260,7 +260,7 @@ module vip_apb_spi #() (
 
             17: begin
                 cmd = cmd17;
-                rsp_for_cmd = R1_read_block;
+                rsp_for_cmd = block_read;
             end
 
             24: begin
@@ -276,17 +276,11 @@ module vip_apb_spi #() (
         r_type = rsp_for_cmd;
 
         // config registers of dut for TX to sd-card and RX from sd-card
-        write_and_read_with_sd(cmd, data, addr, rsp_for_cmd, loopcmd55);
+        write_and_read_with_sd(cmd, data, addr, rsp_for_cmd);
         
-        if(loopcmd55) acmd_no_rsp = 1;
-
     endtask
 
-    task automatic write_and_read_with_sd(apb_addr_data cmd [0:1], logic [31:0] data, logic [11:0] addr, rsp_type rsp_for_cmd, output logic loopcmd55);
-        // flag set if cmd is acmd type
-        logic is_acmd = 0;
-        // flag tells if card is busy
-        logic acmd_check = 0;
+    task automatic write_and_read_with_sd(apb_addr_data cmd [0:1], logic [31:0] data, logic [11:0] addr, rsp_type rsp_for_cmd);
         
             for(integer i= 0; i< 4; i++) begin
 
@@ -296,7 +290,7 @@ module vip_apb_spi #() (
                 end
 
                 if(i == 2) begin 
-                    // write fifos with data before issuing write
+                    // write fifos with data before issuing cmd transfer to the sd card
                     for(integer j = 0; j< 2; j++) begin
                         data = cmd[j].data;
                         addr = cmd[j].addr;
@@ -317,20 +311,6 @@ module vip_apb_spi #() (
             // read values from DUT RXFIFO
             read_rxfifo(rsp_for_cmd, acmd_check);
 
-            @(posedge apb_mst.PCLK);
-
-            if(rsp_for_cmd == ACMDR1) begin
-                is_acmd = 1;
-            end
-
-            @(posedge apb_mst.PCLK);
-
-            // if acmd41 gets busy from sd card, loop back cmd55
-            if(~acmd_check && is_acmd) begin
-                loopcmd55 = 1;
-            end
-
-
     endtask
 
     // TODO expand on response type logic
@@ -338,6 +318,7 @@ module vip_apb_spi #() (
         logic [11:0] addr = 0;
         logic [31:0] data;
         logic valid_data = 0;
+        bit token_found = 0;
         acmd_check = 0;
         read_rsp = 0;
         counter = 0;
@@ -440,6 +421,24 @@ module vip_apb_spi #() (
                             read_rsp = 1;
                         end
                     end
+                end
+
+                block_read: begin
+                    if (fifodata[7:0] == 8'h00) begin
+                        $display("RSP Found! RSP: %2h\n", response);
+
+                        // keep reading until token received from fifo
+                        if(fifodata[7:0] == 8'hFE) token_found = 1;
+
+                        // if token has not arrived, keep counter at 0
+                        if(~token_found) counter = 0;
+
+                        // when counter reaches 65, 512 bytes of data have been read (64*8=512) Note: needs extra count before the data is in fifo
+                        if(counter == 65) begin
+                            read_rsp = 1;
+                        end
+                        if(counter % 31 == 0) $display("%8h", fifodata);
+                    end 
                 end
 
             endcase
