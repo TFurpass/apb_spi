@@ -85,7 +85,7 @@ module tb_apb_spi #() ();
             fork
                 i_sd_card.miso_generate();
                 i_sd_card.detect_CMD_and_CRC();
-                i_vip.CMD(cmd_num[i], acmd_no_rsp);
+                i_vip.CMD(cmd_num[i]);
             join
         end
         
