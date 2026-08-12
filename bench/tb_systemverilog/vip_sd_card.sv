@@ -85,6 +85,8 @@ module vip_sd_card #(
     int byte_idx;
     int bit_cnt;
 
+    // "task reaches end" flags
+    bit miso_gen_end_flag, cmd_crc_check_end_flag;
 
     // does not take into account interruptions in sclk 
     task automatic powerup(logic mosi, logic cs, logic sclk);
@@ -104,6 +106,7 @@ module vip_sd_card #(
 
     task miso_generate();
     // TODO Add block read and write action
+        miso_gen_end_flag = 0;
         do begin
             while(~rsp) begin 
                 miso_line = 1;
@@ -146,10 +149,14 @@ module vip_sd_card #(
             i=0;
             rsp = 0;
         end while(rsp); // TODO TEST cs interrupt in the middle of transfer functionality
+        miso_gen_end_flag = 1;
+        $display("\t### Task miso_generate reached its end ###");
+        
     endtask
 
     task automatic detect_CMD_and_CRC();
         data_packet = 0;
+        cmd_crc_check_end_flag = 0;
         // wait for sclk since the sd card operates only when sclk is provided
         //@(posedge sclk);
 
@@ -186,6 +193,8 @@ module vip_sd_card #(
                 data_packet = 0;
             end
         end while (~cs & ~rsp);
+        cmd_crc_check_end_flag = 1;
+        $display("\t### Task detect_CMD_and_CRC has reached its end ###");
     endtask
 
     assign miso = miso_line;
