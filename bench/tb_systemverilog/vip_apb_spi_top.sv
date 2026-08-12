@@ -22,7 +22,10 @@ module vip_apb_spi #() (
     logic clk, rst_n;
     logic [31:0] counter = 0;
 
+    // for debugging
     integer i;
+    bit t;
+
     logic rsp_found;
     logic read_rsp;
     logic [7:0] response;
@@ -30,8 +33,7 @@ module vip_apb_spi #() (
     logic [31:0] fifodata = 0;
     logic acmd_no_rsp = 0;
 
-    bit t;
-    
+    bit cmd_task_done;
 
     // TODO expand on response type logic
     typedef enum logic[2:0] {
@@ -230,7 +232,8 @@ module vip_apb_spi #() (
         logic [31:0] bounds;
         rsp_found = 0;
         response = 0;
-        
+        cmd_task_done = 0;
+
         $display("\n\tStarting single command test");
         $display("\tCMD: %2d", CMD);
         
@@ -280,7 +283,11 @@ module vip_apb_spi #() (
 
         // config registers of dut for TX to sd-card and RX from sd-card
         write_and_read_with_sd(cmd, data, addr, rsp_for_cmd);
-        
+        cmd_task_done = 1;
+        $display("-------------------------");
+        $display("##CMD task reached the end##");
+        $display("-------------------------");
+
     endtask
 
     task automatic write_and_read_with_sd(apb_addr_data cmd [0:1], logic [31:0] data, logic [11:0] addr, rsp_type rsp_for_cmd);
