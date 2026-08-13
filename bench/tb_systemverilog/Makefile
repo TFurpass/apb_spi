@@ -38,7 +38,6 @@ VFLAGS = \
 	--build \
 	--unroll-count 256 \
 	--Mdir $(VERIL_BUILD_DIR) \
-	-j `nproc` \
 
 .PHONY: 
 all: lint verilate simv \

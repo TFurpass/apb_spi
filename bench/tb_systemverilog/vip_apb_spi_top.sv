@@ -383,11 +383,15 @@ module vip_apb_spi #() (
                 ACMDR1: begin
 
                     if(fifodata[7:0] == 00) begin
-                        acmd_no_rsp = 1;
                         read_rsp = 1;
-                        $display("acmd found");
+                        $display("Response : 00 Card is ready");
                     end
-                    if(fifodata[7:0] == 01) read_rsp = 1;
+                    if(fifodata[7:0] == 01) begin
+                        read_rsp = 1;
+                        acmd_no_rsp = 1;
+                        $display("Response : 01 Card is busy");
+
+                    end
                 end
 
                 R3: begin
