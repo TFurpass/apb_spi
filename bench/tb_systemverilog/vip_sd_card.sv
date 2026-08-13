@@ -77,10 +77,7 @@ module vip_sd_card #(
     // when CRC is detected, rsp is asserted to enable response.
     bit rsp = 0;
     logic miso_line;
-    integer i;
-
     logic [39:0] tx;
-
     logic [7:0] block_byte;
     int byte_idx;
     int bit_cnt;
@@ -104,7 +101,22 @@ module vip_sd_card #(
     endtask
 
 
-    task miso_generate();
+    task automatic send_byte;
+        input [7:0] data_byte;
+        reg [7:0] tmp_byte;
+
+        begin
+            tmp_byte = data_byte;
+            for (integer j = 0; j < 8; j++)begin
+                miso_line = tmp_byte[7];
+                tmp_byte = tmp_byte << 1;
+                @(negedge sclk);
+            end
+        end
+    endtask
+
+
+    task automatic miso_generate();
     // TODO Add block read and write action
         miso_gen_end_flag = 0;
         do begin
@@ -114,39 +126,47 @@ module vip_sd_card #(
             end;
 
             // simulate delay, sd card is aligned with sclk in 8 bit counts for all data it sends and evaluates.
-            for ( i = 0; i< 8; i++) begin
+            for (integer i = 0; i< 8; i++) begin
                 @(negedge sclk);
                 miso_line = 1;
             end
 
             // STUBS for block read and block write
             if (rx_cmd.read_block) begin
-                $display("START BLOCK READ!");
-                //SEND TOKEN
-                //SEND 512bytes of data
-                //SEND CRC
+                $display("START BLOCK READ!\n");
+                //Send token
+                send_byte(8'hFE);
+                $display("TOKEN SENDED!\n");
+
+                //Send 512bytes of data
+                for (integer k = 0; k < 512; k++)begin
+                    send_byte(sector_buf[k]);
+                end
+
+                //SEND CRC -> not implemented yet.
+
             end
 
             else if (rx_cmd.write_block) begin
-                $display("START BLOCK WRITE!");
-                //RECEIVE TOKEN
+                $display("START BLOCK WRITE!\n");
+                //Wait for token
+                $display("GOT THE TOKEN FROM THE MASTER!\n");
+
                 //BLOCK WRITING ACTION..
-                //CRC
+
+                //CRC -> not implemented yet
             end
 
 
 
-            else begin // TODO edit serializer to be more universal
-                //Aling response to the top
+            else begin
+                //Send regular CMD response
                 tx = rx_cmd.response << (40-rx_cmd.resp_len*8);
-                //Send response
-                for ( i = 0; i< rx_cmd.resp_len * 8; i++) begin
-                    miso_line = tx[39];
-                    tx = tx << 1;
-                @(negedge sclk);
+                for (integer i = 0; i < rx_cmd.resp_len; i++) begin
+                    send_byte(tx[39:32]);
+                    tx = tx << 8;
                 end
             end
-            i=0;
             rsp = 0;
         end while(rsp); // TODO TEST cs interrupt in the middle of transfer functionality
         miso_gen_end_flag = 1;

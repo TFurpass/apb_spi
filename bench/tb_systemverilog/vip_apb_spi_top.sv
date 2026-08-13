@@ -447,19 +447,20 @@ module vip_apb_spi #() (
                     if (fifodata[7:0] == 8'h00) begin
                         $display("RSP Found! RSP: %2h\n", response);
 
-                        // keep reading until token received from fifo
-                        if(fifodata[7:0] == 8'hFE) token_found = 1;
-
-                        t= token_found;
-                        // if token has not arrived, keep counter at 0
-                        if(~token_found) counter = 0;
-
-                        // when counter reaches 65, 512 bytes of data have been read (64*8=512) Note: needs extra count before the data is in fifo
-                        if(counter == 513) begin
-                            read_rsp = 1;
-                        end
-                        if((counter % 31 == 0) && token_found) $display("%8h", fifodata);
                     end 
+
+                    // keep reading until token received from fifo
+                    if(fifodata[7:0] == 8'hFE) token_found = 1;
+
+                    t= token_found;
+                    // if token has not arrived, keep counter at 0
+                    if(~token_found) counter = 0;
+
+                    // when counter reaches 65, 512 bytes of data have been read (64*8=512) Note: needs extra count before the data is in fifo
+                    if(counter == 513) begin
+                        read_rsp = 1;
+                    end
+                    if((counter % 31 == 0) && token_found) $display("%8h", fifodata);
                 end
 
             endcase

@@ -82,7 +82,7 @@ module tb_apb_spi #() ();
         join
         
 
-        /* for(integer i = 0; i< 7; i++) begin
+        for(integer i = 0; i< 7; i++) begin
             fork
                 i_sd_card.miso_generate();
                 i_sd_card.detect_CMD_and_CRC();
@@ -94,15 +94,14 @@ module tb_apb_spi #() ();
             //if the cmd executed is ACMD41 and card responded busy, loop back to cmd55
             if((cmd_num[i] == 41) & i_vip.acmd_no_rsp) i -= 2;
 
-           
-        end */
-        fork
+        end
+       /*  fork
             i_sd_card.miso_generate();
             i_sd_card.detect_CMD_and_CRC();
             i_vip.CMD(cmd_num[6]);
         join_none
 
-        wait(i_vip.cmd_task_done & i_sd_card.miso_gen_end_flag & i_sd_card.cmd_crc_check_end_flag);
+        wait(i_vip.cmd_task_done & i_sd_card.miso_gen_end_flag & i_sd_card.cmd_crc_check_end_flag); */
     end
     
 
