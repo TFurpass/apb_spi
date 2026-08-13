@@ -104,7 +104,7 @@ module vip_sd_card #(
     task automatic send_byte;
         input [7:0] data_byte;
         reg [7:0] tmp_byte;
-
+        
         begin
             tmp_byte = data_byte;
             for (integer j = 0; j < 8; j++)begin
@@ -181,9 +181,7 @@ module vip_sd_card #(
         //@(posedge sclk);
 
         // cs and mosi should be high for powerup, when cs goes low, we read mosi
-        while (mosi) begin
-            #2us;
-        end
+        @(negedge mosi);
 
         //CMD and CRC reading
         do begin @(posedge sclk);

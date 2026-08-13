@@ -61,15 +61,13 @@ module vip_apb_spi #() (
         '{12'(`STATUS_ADDR), 32'h02}
     };
 
-     apb_addr_data sclk_25 [0:3]='{
-        '{12'(`CLKDIV_ADDR), 32'h1F4},
+     apb_addr_data sclk_25 [0:2]='{
         '{12'(`SPILEN_ADDR), 32'h00500000},
         '{12'(`TXFIFO_ADDR), 32'hFFFFFFFF},
         '{12'(`STATUS_ADDR), 32'h02}
     };
    
-    apb_addr_data cmd_apb_write_config [0:3] = '{
-        '{12'(`CLKDIV_ADDR), 32'h1F4},
+    apb_addr_data cmd_apb_write_config [0:2] = '{
         '{12'(`SPILEN_ADDR), 32'h00300000},
         '{12'(`STATUS_ADDR), 32'h0122},
         '{12'(`SPILEN_ADDR), 32'h00300000}
@@ -317,14 +315,14 @@ module vip_apb_spi #() (
 
     task automatic write_and_read_with_sd(apb_addr_data cmd [0:1], logic [31:0] data, logic [11:0] addr, rsp_type rsp_for_cmd, logic [7:0] CMD);
         
-            for(integer i= 0; i< 4; i++) begin
+            for(integer i= 0; i< 3; i++) begin
 
                 // waiting for idle state at the start and everytime an spi write or read is issued through state_register
-                if(i == 2 | i == 0 ) begin
+                if(i == 1 | i == 0 ) begin
                     wait_for_idle();
                 end
 
-                if(i == 2) begin 
+                if(i == 1) begin 
                     // write fifos with data before issuing cmd transfer to the sd card
                     for(integer j = 0; j< 2; j++) begin
                         data = cmd[j].data;
@@ -349,6 +347,7 @@ module vip_apb_spi #() (
                 // read values from DUT RXFIFO
                 read_rxfifo(rsp_for_cmd);
 
+                // after read from cmd 58, init is finished
                 // increase spi clk frequency
                 if(CMD == 58) begin
                     wait_for_idle();
@@ -358,7 +357,6 @@ module vip_apb_spi #() (
 
     endtask
 
-    // TODO expand on response type logic
     task automatic read_rxfifo(rsp_type rsp_for_cmd);
         logic [11:0] addr = 0;
         logic [31:0] data;
@@ -483,7 +481,6 @@ module vip_apb_spi #() (
                     // keep reading until token received from fifo
                     if(fifodata[7:0] == 8'hFE) token_found = 1;
 
-                    t= token_found;
                     // if token has not arrived, keep counter at 0
                     if(~token_found) counter = 0;
 
@@ -512,7 +509,6 @@ module vip_apb_spi #() (
         response = 0;
         token_found = 0;
         data_match = 1;
-        t= 0;
     endtask
 
     task automatic write_cmd();
@@ -532,6 +528,8 @@ module vip_apb_spi #() (
         end
 
     endtask
+
+    
 
     task automatic write_read_test();
         logic [31:0] data;
