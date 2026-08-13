@@ -71,7 +71,7 @@ module tb_apb_spi #() ();
     initial begin
         counter = 0;
         card_found = 0;
-        $dumpfile("build/verilator_build/wave.vcd");
+        $dumpfile("trace.vcd");
         $dumpvars(0, i_dut);
         $display("\n\t###TESTING###");
         #50us;
@@ -81,6 +81,7 @@ module tb_apb_spi #() ();
             
         join
         
+
         for(integer i = 0; i< 7; i++) begin
             fork
                 i_sd_card.miso_generate();
@@ -88,9 +89,10 @@ module tb_apb_spi #() ();
                 i_vip.CMD(cmd_num[i]);
             join
         end
+
         
         
-/* 
+/*
         // TODO add commands
         if(card_found) begin
             fork

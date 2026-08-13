@@ -2,3 +2,5 @@
 Bender.lock
 build
 obj_dir
+*.vcd
+*.img
