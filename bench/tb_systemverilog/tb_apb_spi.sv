@@ -81,8 +81,8 @@ module tb_apb_spi #() ();
             
         join
         
-
-        for(integer i = 0; i< 7; i++) begin
+/*
+        for(integer i = 0; i< 7; i = i+1) begin
             fork
                 i_sd_card.miso_generate();
                 i_sd_card.detect_CMD_and_CRC();
@@ -90,7 +90,57 @@ module tb_apb_spi #() ();
             join
         end
 
-        
+*/
+        //Individual commands
+        //CMD0
+        fork
+            i_sd_card.miso_generate();
+            i_sd_card.detect_CMD_and_CRC();
+            i_vip.CMD(cmd_num[0]);
+        join
+
+        //CMD8
+        fork
+            i_sd_card.miso_generate();
+            i_sd_card.detect_CMD_and_CRC();
+            i_vip.CMD(cmd_num[1]);
+        join
+
+        //CMD55
+        fork
+            i_sd_card.miso_generate();
+            i_sd_card.detect_CMD_and_CRC();
+            i_vip.CMD(cmd_num[2]);
+        join
+
+        //ACMD41
+        fork
+            i_sd_card.miso_generate();
+            i_sd_card.detect_CMD_and_CRC();
+            i_vip.CMD(cmd_num[3]);
+        join
+
+        //CMD58
+        fork
+            i_sd_card.miso_generate();
+            i_sd_card.detect_CMD_and_CRC();
+            i_vip.CMD(cmd_num[4]);
+        join
+
+        //CMD17
+        fork
+            i_sd_card.miso_generate();
+            i_sd_card.detect_CMD_and_CRC();
+            i_vip.CMD(cmd_num[5]);
+        join
+
+        //CMD24
+        fork
+            i_sd_card.miso_generate();
+            i_sd_card.detect_CMD_and_CRC();
+            i_vip.CMD(cmd_num[6]);
+        join
+
         
 /*
         // TODO add commands
