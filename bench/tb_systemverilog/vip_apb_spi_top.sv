@@ -18,7 +18,7 @@ module vip_apb_spi #() (
 );
 
     localparam time clk_cycle = 10ns;
-    localparam longint unsigned SimCycles = 'd500_000;
+    localparam longint unsigned SimCycles = 'd700_000;
     logic clk, rst_n;
     logic [31:0] counter = 0;
 
@@ -34,6 +34,7 @@ module vip_apb_spi #() (
 
     bit cmd_task_done;
     bit t;
+    bit token;
     
 
     // TODO expand on response type logic
@@ -54,6 +55,13 @@ module vip_apb_spi #() (
     } apb_addr_data;
 
     apb_addr_data init_apb [0:3]='{
+        '{12'(`CLKDIV_ADDR), 32'h1F4},
+        '{12'(`SPILEN_ADDR), 32'h00500000},
+        '{12'(`TXFIFO_ADDR), 32'hFFFFFFFF},
+        '{12'(`STATUS_ADDR), 32'h02}
+    };
+
+     apb_addr_data sclk_25 [0:3]='{
         '{12'(`CLKDIV_ADDR), 32'h1F4},
         '{12'(`SPILEN_ADDR), 32'h00500000},
         '{12'(`TXFIFO_ADDR), 32'hFFFFFFFF},
@@ -129,7 +137,22 @@ module vip_apb_spi #() (
         .apb_mst(apb_mst)
     );
 
-    
+    logic[31:0] sector_buf[128];
+    integer fd;
+
+    initial begin
+        fd = $fopen("sdcard.img", "r+b");
+        if (fd == 0) begin
+            $display("Failed to open disk image!");
+            $finish;
+        end
+
+        //Read initial values of the image to buffer
+        else begin
+            $fread(sector_buf,fd);
+        end
+    end
+
     task automatic detect_card(output bit card_found);
 
         logic no_rsp;
@@ -187,6 +210,7 @@ module vip_apb_spi #() (
         end
         $display("\tinit end\n");
     endtask
+
 
     task automatic test_APB_REG_write_read (logic [11:0] addr, logic [31:0] write_data, bit manual_data);
         
@@ -324,6 +348,12 @@ module vip_apb_spi #() (
             end else begin
                 // read values from DUT RXFIFO
                 read_rxfifo(rsp_for_cmd);
+
+                // increase spi clk frequency
+                if(CMD == 58) begin
+                    wait_for_idle();
+                    i_apb.write(12'(`CLKDIV_ADDR), 32'h08);
+                end
             end
 
     endtask
@@ -334,6 +364,7 @@ module vip_apb_spi #() (
         logic [31:0] data;
         logic valid_data = 0;
         bit token_found = 0;
+        bit data_match = 1;
         
         read_rsp = 0;
         counter = 0;
@@ -444,7 +475,7 @@ module vip_apb_spi #() (
                 end
 
                 block_read: begin
-                    if (fifodata[7:0] == 8'h00) begin
+                    if ( (fifodata[7:0] == 8'h00) & ~token_found ) begin
                         $display("RSP Found! RSP: %2h\n", response);
 
                     end 
@@ -459,8 +490,16 @@ module vip_apb_spi #() (
                     // when counter reaches 65, 512 bytes of data have been read (64*8=512) Note: needs extra count before the data is in fifo
                     if(counter == 513) begin
                         read_rsp = 1;
+                        $display("all 512Bytes read");
                     end
-                    if((counter % 31 == 0) && token_found) $display("%8h", fifodata);
+                    if((counter % 4 == 0) & token_found) begin
+                        $display("data read on APB side %8h = %8h data sent from sd-card", fifodata, sector_buf[(counter/4-1)]);
+                        if(fifodata != sector_buf[(counter/4-1)]) data_match = 0;
+
+                        assert(data_match == 1)
+                            else $error("fifodata does not match data sent from the sd card");
+                    end
+
                 end
 
             endcase
@@ -471,6 +510,9 @@ module vip_apb_spi #() (
         read_rsp = 0;
         counter = 0;
         response = 0;
+        token_found = 0;
+        data_match = 1;
+        t= 0;
     endtask
 
     task automatic write_cmd();
