@@ -82,7 +82,7 @@ module tb_apb_spi #() ();
         join
         
 
-        for(integer i = 0; i< 7; i++) begin
+        /* for(integer i = 0; i< 7; i++) begin
             fork
                 i_sd_card.miso_generate();
                 i_sd_card.detect_CMD_and_CRC();
@@ -95,19 +95,14 @@ module tb_apb_spi #() ();
             if((cmd_num[i] == 41) & i_vip.acmd_no_rsp) i -= 2;
 
            
-        end
+        end */
+        fork
+            i_sd_card.miso_generate();
+            i_sd_card.detect_CMD_and_CRC();
+            i_vip.CMD(cmd_num[6]);
+        join_none
 
-        
-        
-/*
-        // TODO add commands
-        if(card_found) begin
-            fork
-                i_vip.CMD(0);
-                i_sd_card.miso_generate();
-                i_sd_card.detect_CMD_and_CRC();
-            join
-        end  */
+        wait(i_vip.cmd_task_done & i_sd_card.miso_gen_end_flag & i_sd_card.cmd_crc_check_end_flag);
     end
     
 

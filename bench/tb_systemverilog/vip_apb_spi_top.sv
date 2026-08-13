@@ -283,7 +283,7 @@ module vip_apb_spi #() (
         r_type = rsp_for_cmd;
 
         // config registers of dut for TX to sd-card and RX from sd-card
-        write_and_read_with_sd(cmd, data, addr, rsp_for_cmd);
+        write_and_read_with_sd(cmd, data, addr, rsp_for_cmd, CMD);
         cmd_task_done = 1;
         $display("-------------------------");
         $display("##CMD task reached the end##");
@@ -291,7 +291,7 @@ module vip_apb_spi #() (
         
     endtask
 
-    task automatic write_and_read_with_sd(apb_addr_data cmd [0:1], logic [31:0] data, logic [11:0] addr, rsp_type rsp_for_cmd);
+    task automatic write_and_read_with_sd(apb_addr_data cmd [0:1], logic [31:0] data, logic [11:0] addr, rsp_type rsp_for_cmd, logic [7:0] CMD);
         
             for(integer i= 0; i< 4; i++) begin
 
@@ -319,8 +319,12 @@ module vip_apb_spi #() (
 
             wait_for_idle();
 
-            // read values from DUT RXFIFO
-            read_rxfifo(rsp_for_cmd);
+            if(CMD == 24) begin
+                write_cmd();
+            end else begin
+                // read values from DUT RXFIFO
+                read_rxfifo(rsp_for_cmd);
+            end
 
     endtask
 
@@ -466,6 +470,24 @@ module vip_apb_spi #() (
         read_rsp = 0;
         counter = 0;
         response = 0;
+    endtask
+
+    task automatic write_cmd();
+        logic [31:0] data;
+        i_apb.write(12'(`SPILEN_ADDR), 32'h00200000);
+
+
+        // send start block token FE and then 512b of data  | 32/8 = 4 | 512/4= 128 | 128 + 1 token = 129 |
+        data = 32'hFFFFFFFE;
+        for (integer i = 0; i< 129; i++)begin
+            @(posedge apb_mst.PCLK);
+            i_apb.write(12'(`TXFIFO_ADDR), data);
+            @(posedge apb_mst.PCLK);
+            data = $urandom();
+            i_apb.write(12'(`STATUS_ADDR), 32'h0122);
+            wait_for_idle();
+        end
+
     endtask
 
     task automatic write_read_test();
