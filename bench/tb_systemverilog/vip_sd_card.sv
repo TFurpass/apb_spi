@@ -24,7 +24,7 @@ module vip_sd_card #(
     initial begin
         fd = $fopen("sdcard.img", "r+b");
         if (fd == 0) begin
-        $display("Failed to open disk image!");
+        $display("Failed to open the SD-card image!");
         $finish;
         end
 
@@ -131,23 +131,30 @@ module vip_sd_card #(
 
     
     logic [7:0] test;
+/*
+    task automatic check_image();
+            //Checks the written block against the image
 
+    endtask
+*/
     task automatic miso_generate();
-    // TODO Add block read and write action
         miso_gen_end_flag = 0;
         do begin
+            
             while(~rsp) begin 
                 miso_line = 1;
-                @(posedge sclk);
+                @(negedge sclk);
             end;
-
-            // simulate delay, sd card is aligned with sclk in 8 bit counts for all data it sends and evaluates.
-            for (integer i = 0; i< 8; i++) begin
+            
+            /*
+            //  FIX THIS. This causes the first byte to be dropped of! 
+            //simulate delay, sd card is aligned with sclk in 8 bit counts for all data it sends and evaluates.
+            for (integer i = 0; i< 2; i++) begin
                 @(negedge sclk);
                 miso_line = 1;
-            end
-
-            // STUBS for block read and block write
+            end            
+            */
+            
             if (rx_cmd.read_block) begin
                 $display("START BLOCK READ!\n");
                 //Send token
@@ -172,11 +179,19 @@ module vip_sd_card #(
                 do begin
                     receive_byte(input_byte);
                         $display("Received byte: %02H", input_byte);
-                end while (input_byte != 8'hFE);
+                end while (input_byte != 8'hFE); //FOR SOME REASON FIRST BYTE IS SKIPPED
 
                 $display("GOT THE TOKEN FROM THE MASTER!");
 
-                //BLOCK WRITING ACTION..
+                //Write 512 bytes of data
+                for (integer k = 0; k < 512; k++)begin
+                    receive_byte(input_byte);
+                    $fwrite(fd,"%c", input_byte);
+                end
+
+                $display("BLOCK WRITE COMPLETE!");
+
+                //TODO Add data checking against written image!
 
                 //CRC -> not implemented yet
             end

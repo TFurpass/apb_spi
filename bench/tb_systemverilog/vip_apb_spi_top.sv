@@ -464,7 +464,7 @@ module vip_apb_spi #() (
                 end
 
                 R7: begin
-                    if(counter == 5) begin
+                    if(counter == 4) begin
                         if (fifodata[31:0] == 32'h000001AA) begin
                             $display("\tVoltage accepted");
                             $display("\tValue: %3h echoed in response.", fifodata[8:0]);
