@@ -81,76 +81,27 @@ module tb_apb_spi #() ();
             
         join
         
-/*
-        for(integer i = 0; i< 7; i = i+1) begin
+
+        for(integer i = 0; i< 7; i++) begin
             fork
                 i_sd_card.miso_generate();
                 i_sd_card.detect_CMD_and_CRC();
                 i_vip.CMD(cmd_num[i]);
-            join
+            join_none
+
+            wait(i_vip.cmd_task_done & i_sd_card.miso_gen_end_flag & i_sd_card.cmd_crc_check_end_flag);
+            
+            //if the cmd executed is ACMD41 and card responded busy, loop back to cmd55
+            if((cmd_num[i] == 41) & i_vip.acmd_no_rsp) i -= 2;
+
         end
-
-*/
-        //Individual commands
-        //CMD0
-        fork
-            i_sd_card.miso_generate();
-            i_sd_card.detect_CMD_and_CRC();
-            i_vip.CMD(cmd_num[0]);
-        join
-
-        //CMD8
-        fork
-            i_sd_card.miso_generate();
-            i_sd_card.detect_CMD_and_CRC();
-            i_vip.CMD(cmd_num[1]);
-        join
-
-        //CMD55
-        fork
-            i_sd_card.miso_generate();
-            i_sd_card.detect_CMD_and_CRC();
-            i_vip.CMD(cmd_num[2]);
-        join
-
-        //ACMD41
-        fork
-            i_sd_card.miso_generate();
-            i_sd_card.detect_CMD_and_CRC();
-            i_vip.CMD(cmd_num[3]);
-        join
-
-        //CMD58
-        fork
-            i_sd_card.miso_generate();
-            i_sd_card.detect_CMD_and_CRC();
-            i_vip.CMD(cmd_num[4]);
-        join
-
-        //CMD17
-        fork
-            i_sd_card.miso_generate();
-            i_sd_card.detect_CMD_and_CRC();
-            i_vip.CMD(cmd_num[5]);
-        join
-
-        //CMD24
-        fork
+       /*  fork
             i_sd_card.miso_generate();
             i_sd_card.detect_CMD_and_CRC();
             i_vip.CMD(cmd_num[6]);
-        join
+        join_none
 
-        
-/*
-        // TODO add commands
-        if(card_found) begin
-            fork
-                i_vip.CMD(0);
-                i_sd_card.miso_generate();
-                i_sd_card.detect_CMD_and_CRC();
-            join
-        end  */
+        wait(i_vip.cmd_task_done & i_sd_card.miso_gen_end_flag & i_sd_card.cmd_crc_check_end_flag); */
     end
     
 

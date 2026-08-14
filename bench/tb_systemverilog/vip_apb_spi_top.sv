@@ -18,11 +18,13 @@ module vip_apb_spi #() (
 );
 
     localparam time clk_cycle = 10ns;
-    localparam longint unsigned SimCycles = 'd500_000;
+    localparam longint unsigned SimCycles = 'd700_000;
     logic clk, rst_n;
     logic [31:0] counter = 0;
 
+    // for debugging
     integer i;
+
     logic rsp_found;
     logic read_rsp;
     logic [7:0] response;
@@ -30,7 +32,9 @@ module vip_apb_spi #() (
     logic [31:0] fifodata = 0;
     logic acmd_no_rsp = 0;
 
+    bit cmd_task_done;
     bit t;
+    bit token;
     
 
     // TODO expand on response type logic
@@ -56,9 +60,14 @@ module vip_apb_spi #() (
         '{12'(`TXFIFO_ADDR), 32'hFFFFFFFF},
         '{12'(`STATUS_ADDR), 32'h02}
     };
+
+     apb_addr_data sclk_25 [0:2]='{
+        '{12'(`SPILEN_ADDR), 32'h00500000},
+        '{12'(`TXFIFO_ADDR), 32'hFFFFFFFF},
+        '{12'(`STATUS_ADDR), 32'h02}
+    };
    
-    apb_addr_data cmd_apb_write_config [0:3] = '{
-        '{12'(`CLKDIV_ADDR), 32'h1F4},
+    apb_addr_data cmd_apb_write_config [0:2] = '{
         '{12'(`SPILEN_ADDR), 32'h00300000},
         '{12'(`STATUS_ADDR), 32'h0122},
         '{12'(`SPILEN_ADDR), 32'h00300000}
@@ -126,7 +135,22 @@ module vip_apb_spi #() (
         .apb_mst(apb_mst)
     );
 
-    
+    logic[31:0] sector_buf[128];
+    integer fd;
+
+    initial begin
+        fd = $fopen("sdcard.img", "r+b");
+        if (fd == 0) begin
+            $display("Failed to open disk image!");
+            $finish;
+        end
+
+        //Read initial values of the image to buffer
+        else begin
+            $fread(sector_buf,fd);
+        end
+    end
+
     task automatic detect_card(output bit card_found);
 
         logic no_rsp;
@@ -185,6 +209,7 @@ module vip_apb_spi #() (
         $display("\tinit end\n");
     endtask
 
+
     task automatic test_APB_REG_write_read (logic [11:0] addr, logic [31:0] write_data, bit manual_data);
         
         automatic logic [31:0] read_data = 0;
@@ -230,7 +255,8 @@ module vip_apb_spi #() (
         logic [31:0] bounds;
         rsp_found = 0;
         response = 0;
-        
+        cmd_task_done = 0;
+
         $display("\n\tStarting single command test");
         $display("\tCMD: %2d", CMD);
         
@@ -279,20 +305,24 @@ module vip_apb_spi #() (
         r_type = rsp_for_cmd;
 
         // config registers of dut for TX to sd-card and RX from sd-card
-        write_and_read_with_sd(cmd, data, addr, rsp_for_cmd);
+        write_and_read_with_sd(cmd, data, addr, rsp_for_cmd, CMD);
+        cmd_task_done = 1;
+        $display("-------------------------");
+        $display("##CMD task reached the end##");
+        $display("-------------------------");
         
     endtask
 
-    task automatic write_and_read_with_sd(apb_addr_data cmd [0:1], logic [31:0] data, logic [11:0] addr, rsp_type rsp_for_cmd);
+    task automatic write_and_read_with_sd(apb_addr_data cmd [0:1], logic [31:0] data, logic [11:0] addr, rsp_type rsp_for_cmd, logic [7:0] CMD);
         
-            for(integer i= 0; i< 4; i++) begin
+            for(integer i= 0; i< 3; i++) begin
 
                 // waiting for idle state at the start and everytime an spi write or read is issued through state_register
-                if(i == 2 | i == 0 ) begin
+                if(i == 1 | i == 0 ) begin
                     wait_for_idle();
                 end
 
-                if(i == 2) begin 
+                if(i == 1) begin 
                     // write fifos with data before issuing cmd transfer to the sd card
                     for(integer j = 0; j< 2; j++) begin
                         data = cmd[j].data;
@@ -311,17 +341,29 @@ module vip_apb_spi #() (
 
             wait_for_idle();
 
-            // read values from DUT RXFIFO
-            read_rxfifo(rsp_for_cmd);
+            if(CMD == 24) begin
+                write_cmd();
+            end else begin
+                // read values from DUT RXFIFO
+                read_rxfifo(rsp_for_cmd);
+
+                // after read from cmd 58, init is finished
+                // increase spi clk frequency
+                if(CMD == 58) begin
+                    wait_for_idle();
+                    i_apb.write(12'(`CLKDIV_ADDR), 32'h08);
+                end
+                
+            end
 
     endtask
 
-    // TODO expand on response type logic
     task automatic read_rxfifo(rsp_type rsp_for_cmd);
         logic [11:0] addr = 0;
         logic [31:0] data;
         logic valid_data = 0;
         bit token_found = 0;
+        bit data_match = 1;
         
         read_rsp = 0;
         counter = 0;
@@ -375,11 +417,15 @@ module vip_apb_spi #() (
                 ACMDR1: begin
 
                     if(fifodata[7:0] == 00) begin
-                        acmd_no_rsp = 1;
                         read_rsp = 1;
-                        $display("acmd found");
+                        $display("Response : 00 Card is ready");
                     end
-                    if(fifodata[7:0] == 01) read_rsp = 1;
+                    if(fifodata[7:0] == 01) begin
+                        read_rsp = 1;
+                        acmd_no_rsp = 1;
+                        $display("Response : 01 Card is busy");
+
+                    end
                 end
 
                 R3: begin
@@ -428,22 +474,33 @@ module vip_apb_spi #() (
                 end
 
                 block_read: begin
-                    if (fifodata[7:0] == 8'h00) begin
+                    if ( (fifodata[7:0] == 8'h00) & ~token_found ) begin
                         $display("RSP Found! RSP: %2h\n", response);
 
-                        // keep reading until token received from fifo
-                        if(fifodata[7:0] == 8'hFE) token_found = 1;
-
-                        t= token_found;
-                        // if token has not arrived, keep counter at 0
-                        if(~token_found) counter = 0;
-
-                        // when counter reaches 65, 512 bytes of data have been read (64*8=512) Note: needs extra count before the data is in fifo
-                        if(counter == 513) begin
-                            read_rsp = 1;
-                        end
-                        if((counter % 31 == 0) && token_found) $display("%8h", fifodata);
                     end 
+
+                    // keep reading until token received from fifo
+                    if(fifodata[7:0] == 8'hFE) begin 
+                        token_found = 1;
+                        i_apb.write(12'(`SPILEN_ADDR), 32'h00200000);
+                    end
+
+                    // if token has not arrived, keep counter at 0
+                    if(~token_found) counter = 0;
+
+                    // when counter reaches 65, 512 bytes of data have been read (64*8=512) Note: needs extra count before the data is in fifo
+                    if(counter == 513) begin
+                        read_rsp = 1;
+                        $display("all 512Bytes read");
+                    end
+                    if((counter % 4 == 0) & token_found) begin
+                        $display("data read on APB side %8h = %8h data sent from sd-card", fifodata, sector_buf[(counter/4-1)]);
+                        if(fifodata != sector_buf[(counter/4-1)]) data_match = 0;
+
+                        assert(data_match == 1)
+                            else $error("fifodata does not match data sent from the sd card");
+                    end
+
                 end
 
             endcase
@@ -454,7 +511,29 @@ module vip_apb_spi #() (
         read_rsp = 0;
         counter = 0;
         response = 0;
+        token_found = 0;
+        data_match = 1;
     endtask
+
+    task automatic write_cmd();
+        logic [31:0] data;
+        i_apb.write(12'(`SPILEN_ADDR), 32'h00200000);
+
+
+        // send start block token FE and then 512b of data  | 32/8 = 4 | 512/4= 128 | 128 + 1 token = 129 |
+        data = 32'hFFFFFFFE;
+        for (integer i = 0; i< 129; i++)begin
+            @(posedge apb_mst.PCLK);
+            i_apb.write(12'(`TXFIFO_ADDR), data);
+            @(posedge apb_mst.PCLK);
+            data = $urandom();
+            i_apb.write(12'(`STATUS_ADDR), 32'h0122);
+            wait_for_idle();
+        end
+
+    endtask
+
+    
 
     task automatic write_read_test();
         logic [31:0] data;
