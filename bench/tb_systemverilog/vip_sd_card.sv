@@ -79,8 +79,6 @@ module vip_sd_card #(
     logic miso_line;
     logic [39:0] tx;
     logic [7:0] block_byte;
-    int byte_idx;
-    int bit_cnt;
 
     // "task reaches end" flags
     bit miso_gen_end_flag, cmd_crc_check_end_flag;
@@ -103,7 +101,7 @@ module vip_sd_card #(
 
     task automatic send_byte;
         input [7:0] data_byte;
-        reg [7:0] tmp_byte;
+        logic [7:0] tmp_byte;
         
         begin
             tmp_byte = data_byte;
@@ -115,6 +113,24 @@ module vip_sd_card #(
         end
     endtask
 
+    task automatic receive_byte;
+        output [7:0] data_byte;
+        logic [7:0] tmp_byte;
+        begin
+            tmp_byte = 8'h00;
+            for (integer j = 0; j < 8; j++) begin
+                tmp_byte[7-j] = mosi;
+                @(negedge sclk);
+                
+            end
+            data_byte = tmp_byte;
+
+            test = data_byte;
+        end
+    endtask
+
+    
+    logic [7:0] test;
 
     task automatic miso_generate();
     // TODO Add block read and write action
@@ -148,9 +164,17 @@ module vip_sd_card #(
             end
 
             else if (rx_cmd.write_block) begin
-                $display("START BLOCK WRITE!\n");
-                //Wait for token
-                $display("GOT THE TOKEN FROM THE MASTER!\n");
+                logic [7:0] input_byte;
+
+                $display("START BLOCK WRITE!");
+
+                // Read bytes until start token 0xFE is received
+                do begin
+                    receive_byte(input_byte);
+                        $display("Received byte: %02H", input_byte);
+                end while (input_byte != 8'hFE);
+
+                $display("GOT THE TOKEN FROM THE MASTER!");
 
                 //BLOCK WRITING ACTION..
 
