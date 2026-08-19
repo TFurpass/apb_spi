@@ -13,17 +13,12 @@ module vip_apb_spi #() (
     apb_interface.APB_Master apb_mst,
     input logic cs,
     input logic sclk
-        /* spi_interface.SPI_Master spi_mst,
-    spi_interface.SPI_Slave spi_slv */
 );
 
     localparam time clk_cycle = 10ns;
-    localparam longint unsigned SimCycles = 'd700_000;
+    localparam longint unsigned SimCycles = 'd1200_000;
     logic clk, rst_n;
-    logic [31:0] counter = 0;
-
-    // for debugging
-    integer i;
+    logic [31:0] counter = 0;    
 
     logic rsp_found;
     logic read_rsp;
@@ -34,7 +29,10 @@ module vip_apb_spi #() (
 
     bit cmd_task_done;
     bit t;
-    bit token;
+
+    //READ/WRITE buffers for error checking
+    logic [31:0] write_buf[128];
+    logic [31:0] read_buf[128];
     
 
     // TODO expand on response type logic
@@ -134,22 +132,6 @@ module vip_apb_spi #() (
         .clk(clk),
         .apb_mst(apb_mst)
     );
-
-    logic[31:0] sector_buf[128];
-    integer fd;
-
-    initial begin
-        fd = $fopen("sdcard.img", "r+b");
-        if (fd == 0) begin
-            $display("Failed to open disk image!");
-            $finish;
-        end
-
-        //Read initial values of the image to buffer
-        else begin
-            $fread(sector_buf,fd);
-        end
-    end
 
     task automatic detect_card(output bit card_found);
 
@@ -289,7 +271,7 @@ module vip_apb_spi #() (
 
             17: begin
                 cmd = cmd17;
-                rsp_for_cmd = block_read;
+                rsp_for_cmd = R1;
             end
 
             24: begin
@@ -342,7 +324,10 @@ module vip_apb_spi #() (
             wait_for_idle();
 
             if(CMD == 24) begin
-                write_cmd();
+                write();
+            end            
+            else if(CMD == 17) begin
+                read();
             end else begin
                 // read values from DUT RXFIFO
                 read_rxfifo(rsp_for_cmd);
@@ -471,37 +456,7 @@ module vip_apb_spi #() (
                             read_rsp = 1;
                         end
                     end
-                end
-
-                block_read: begin
-                    if ( (fifodata[7:0] == 8'h00) & ~token_found ) begin
-                        $display("RSP Found! RSP: %2h\n", response);
-
-                    end 
-
-                    // keep reading until token received from fifo
-                    if(fifodata[7:0] == 8'hFE) begin 
-                        token_found = 1;
-                        i_apb.write(12'(`SPILEN_ADDR), 32'h00200000);
-                    end
-
-                    // if token has not arrived, keep counter at 0
-                    if(~token_found) counter = 0;
-
-                    // when counter reaches 65, 512 bytes of data have been read (64*8=512) Note: needs extra count before the data is in fifo
-                    if(counter == 513) begin
-                        read_rsp = 1;
-                        $display("all 512Bytes read");
-                    end
-                    if((counter % 4 == 0) & token_found) begin
-                        $display("data read on APB side %8h = %8h data sent from sd-card", fifodata, sector_buf[(counter/4-1)]);
-                        if(fifodata != sector_buf[(counter/4-1)]) data_match = 0;
-
-                        assert(data_match == 1)
-                            else $error("fifodata does not match data sent from the sd card");
-                    end
-
-                end
+                end              
 
             endcase
 
@@ -515,34 +470,87 @@ module vip_apb_spi #() (
         data_match = 1;
     endtask
 
-    task automatic write_cmd();
-        logic [31:0] data;
-        i_apb.write(12'(`SPILEN_ADDR), 32'h00200000);
+    task automatic check_image();
+    for (integer i = 0; i < 128; i++) begin
+        if (write_buf[i] !== read_buf[i]) begin
+            $display("Mismatch at index %0d: WRITE_BUF=%08h READ_BUF=%08h",
+                     i, write_buf[i], read_buf[i]);
+            $error;
+        end
+        else begin
+            $display("%0d: WRITE_BUF=%08h READ_BUF=%08h",
+                     i, write_buf[i], read_buf[i]);
+        end
+    end
+    $display("READ AND WRITE MATCHES!");
+
+    endtask
+
+    task automatic read();
+        logic [31:0] data;        
+        counter = -1; //First buffer includes the toke 0xFE
+
+        //Poll for token 0xFE
+        while (data[7:0] != 8'hFE && data[15:8] != 8'hFE && data[23:16]!= 8'hFE && data[31:24]!= 8'hFE); begin
+            i_apb.write(12'(`SPILEN_ADDR), 32'h00080000);
+            i_apb.read(12'(`RXFIFO_ADDR), data);
+            i_apb.write(12'(`STATUS_ADDR), 32'h0121);
+
+            // Save bytes after token
+            if (data[31:24] == 8'hFE) begin
+                read_buf[counter++] = 32'(data[23:16]);
+                read_buf[counter++] = 32'(data[15:8]);
+                read_buf[counter++] = 32'(data[7:0]);
+            end
+            else if (data[23:16] == 8'hFE) begin
+                read_buf[counter++] = 32'(data[15:8]);
+                read_buf[counter++] = 32'(data[7:0]);
+            end
+            else if (data[15:8] == 8'hFE) begin
+                read_buf[counter++] = 32'(data[7:0]);
+            end            
+            wait_for_idle();
+            
+        end         
+        
+        //read data bytes      
+        do begin
+            i_apb.write(12'(`SPILEN_ADDR), 32'h00200000); //32-bit read
+            i_apb.read(12'(`RXFIFO_ADDR), read_buf[counter]);
+            i_apb.write(12'(`STATUS_ADDR), 32'h0121);
+            wait_for_idle();
+            counter++;
+        end while(counter < 128);
+
+        check_image();
+
+    endtask
+
+    task automatic write();
+        logic [31:0] data;        
+        i_apb.write(12'(`SPILEN_ADDR), 32'h00200000);       
 
 
         // send start block token FE and then 512b of data  | 32/8 = 4 | 512/4= 128 | 128 + 1 token = 129 |
-        data = 32'hFFFFFFFE;
-        for (integer i = 0; i< 129; i++)begin
-            @(posedge apb_mst.PCLK);
-            i_apb.write(12'(`TXFIFO_ADDR), data);
-            @(posedge apb_mst.PCLK);
+        i_apb.write(12'(`TXFIFO_ADDR), 32'hFFFFFFFE);
+        i_apb.write(12'(`STATUS_ADDR), 32'h0122);
+        wait_for_idle();
+        
+
+        //Send 512 bytes of data using 32-bit TX buffers
+        for (integer i = 0; i< 128; i++)begin
             data = $urandom();
+            i_apb.write(12'(`TXFIFO_ADDR), data);           
+
+            // Save buffer for later comparison
+            write_buf[i] = data;
+
             i_apb.write(12'(`STATUS_ADDR), 32'h0122);
             wait_for_idle();
         end
 
     endtask
 
-    
-
-    task automatic write_read_test();
-        logic [31:0] data;
-
-        for (integer i = 0; i< 64; i++)begin
-            data = $urandom();
-            //i_apb.write(`TXFIFO_ADDR, data);
-            end
-    endtask
     assign rsp_found = read_rsp;
    
 endmodule : vip_apb_spi

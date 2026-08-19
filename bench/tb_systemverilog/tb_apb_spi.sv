@@ -1,4 +1,13 @@
-
+/*  This testbench checks mandatory phases used in initialization (CMD0-CMD58)
+//  and single block read/write operation (CMD17,CMD24) with the SD-card emulator.
+//  
+//  
+//  Doesn't include at the moment:
+//      -> CID/CSD checks
+//      -> CRC calculation and checking during single block read/write 
+//      -> Doesn't consider delays that occurs during SD-card communications
+//      
+*/      
 module tb_apb_spi #() ();
 
     logic clk, rst_n;
@@ -24,6 +33,8 @@ module tb_apb_spi #() ();
     logic out_en;
     logic acmd_no_rsp;
     bit card_found;
+
+    int RW_test_amount = 4;
 
     // TODO correct bit widths
     logic [8:0] DUT_STATUS_REG; // shows STATUS_REG signals
@@ -81,8 +92,8 @@ module tb_apb_spi #() ();
             
         join
         
-
-        for(integer i = 0; i< 7; i++) begin
+        //Run through init phases
+        for(int i = 0; i< 5; i++) begin
             fork
                 i_sd_card.miso_generate();
                 i_sd_card.detect_CMD_and_CRC();
@@ -95,18 +106,31 @@ module tb_apb_spi #() ();
             if((cmd_num[i] == 41) & i_vip.acmd_no_rsp) i -= 2;
 
         end
-       /*  fork
-            i_sd_card.miso_generate();
-            i_sd_card.detect_CMD_and_CRC();
-            i_vip.CMD(cmd_num[6]);
-        join_none
-
-        wait(i_vip.cmd_task_done & i_sd_card.miso_gen_end_flag & i_sd_card.cmd_crc_check_end_flag); */
-
-
         
+        /* READ/WRITE TESTS */
+        for (int i = 0; i < RW_test_amount; i++)begin            
+                //CMD24 write random data to the image
+                fork
+                    $display("TEST %0d: WRITE RANDOM DATA",i);
+                    i_sd_card.miso_generate();
+                    i_sd_card.detect_CMD_and_CRC();
+                    i_vip.CMD(cmd_num[6]);
+                join
+
+                //CMD17 read if the written random data was stored correctly
+                fork
+                    $display("TEST %0d: READ RANDOM DATA",i);
+                    i_sd_card.miso_generate();
+                    i_sd_card.detect_CMD_and_CRC();
+                    i_vip.CMD(cmd_num[5]);
+                join
+       
+        end
+        //END SIMULATION
+        $finish(0);
+
     end
-    
+/*    
 
     // Debugging
     // ---
@@ -120,7 +144,7 @@ module tb_apb_spi #() ();
     always@(posedge csn)begin
          mosi_val = mosi_val >> 1;
     end
-       
+ */      
     assign cmd = mosi_val[95:64];
     assign addr = mosi_val[63:32];
     assign fifo = mosi_val[31:0];

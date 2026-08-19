@@ -32,6 +32,7 @@ image:
 VFLAGS = \
 	--timing \
 	--trace-fst \
+	--build-jobs 0 \
 	--trace-structs \
 	--trace-params \
 	--hierarchical \
