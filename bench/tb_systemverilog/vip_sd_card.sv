@@ -1,13 +1,5 @@
 //TODO
-// -> FIX magic numbers
-// -> FIX static lengths
-// -> CHECK constants (CMDs, OCR, others) from here and tb itself
 // -> Create function for CRC calculation -> OPTIONAL
-// -> Change read in DUT to be done in 32-bit words instead of bytes?
-// -> FIX SCLK
-// -> FIX READ AND WRITE OPERATION
-
-
 
 module vip_sd_card #(
 ) (
@@ -49,11 +41,11 @@ module vip_sd_card #(
     sd_cmd_t rx_cmd;
 
     localparam sd_cmd_t SD_CMDS[7] = '{
-        '{8'h40, 8'h95, 40'h01,         1,  0,  0}, // CMD0 -> R1=0x01
-        '{8'h48, 8'h87, 40'h01000001AA, 5,  0,  0}, // CMD8 -> R7
+        '{8'h40, 8'h95, 40'h01,         1,  0,  0}, // CMD0
+        '{8'h48, 8'h87, 40'h01000001AA, 5,  0,  0}, // CMD8
         '{8'h77, 8'h65, 40'h01,         1,  0,  0}, // CMD55
         '{8'h69, 8'h77, 40'h00,         1,  0,  0}, // ACMD41
-        '{8'h7A, 8'hFD, 40'h0040FF8000, 5,  0,  0}, // CMD58 -> R3 -> CHECK IF THIS IS CORRECT!
+        '{8'h7A, 8'hFD, 40'h0040FF8000, 5,  0,  0}, // CMD58
         '{8'h51, 8'h55, 40'h00,         1,  1,  0}, // CMD17 BLOCK READ
         '{8'h58, 8'h6F, 40'h00,         1,  0,  1}  // CMD24 BLOCK WRITE
     };
@@ -76,17 +68,15 @@ module vip_sd_card #(
     bit rsp = 0;
     logic miso_line;
     logic [39:0] tx;
-    logic [7:0] block_byte;
 
     // "task reaches end" flags
     bit miso_gen_end_flag, cmd_crc_check_end_flag;
 
     // does not take into account interruptions in sclk 
     task automatic powerup(logic mosi, logic cs, logic sclk);
-
         logic [7:0] cycle_cnt = 0;
         @(posedge sclk);
-    
+
         for (cycle_cnt = 0; cycle_cnt < 74; cycle_cnt++) begin
             if(~cs | ~mosi) begin
                 $display("\tSD-CARD: powerup of an sd card needs atleast 74 sclk cycles where cs & mosi are high");
@@ -122,31 +112,20 @@ module vip_sd_card #(
                 tmp_byte[7-j] = mosi;             
                 data_byte = tmp_byte;    
             end
-            
-            //$display("SD-CARD: BYTE FROM THE MASTER: %02h",data_byte);
         end
     endtask
     
     task automatic miso_generate();
         miso_gen_end_flag = 0;
-        do begin
-            
+        do begin            
             while(~rsp) begin 
                 miso_line = 1;
                 @(negedge sclk);
-            end;
-            
-            /*
-            //  FIX THIS. This causes the first byte to be dropped of! 
-            //simulate delay, sd card is aligned with sclk in 8 bit counts for all data it sends and evaluates.
-            for (integer i = 0; i< 2; i++) begin
-                @(negedge sclk);
-                miso_line = 1;
-            end            
-            */
+            end;                        
             
             if (rx_cmd.read_block) begin
                 $display("SD-CARD: START BLOCK READ!\n");
+                
                 //Send token
                 send_byte(8'hFE);
                 $display("SD-CARD: TOKEN SENDED!\n");
@@ -156,13 +135,12 @@ module vip_sd_card #(
                 $fread(sector_buf,fd);
                 $fclose(fd);
         
-
-                //Send 512bytes of data
+                //Send 512 bytes of data
                 for (integer k = 0; k < 512; k++)begin
                     send_byte(sector_buf[k]);
                 end
 
-                //SEND CRC -> not implemented yet.
+                //SEND CRC -> not implemented
 
             end
 
@@ -170,30 +148,27 @@ module vip_sd_card #(
                 logic [7:0] input_byte;
                 
                 $display("SD-CARD: START BLOCK WRITE!");
+
                 // Read bytes until start token 0xFE is received
                 do begin
                     receive_byte(input_byte);
-                        //$display("Received byte: %02H", input_byte);
-                end while (input_byte != 8'hFE); //FOR SOME REASON FIRST BYTE IS SKIPPED
+                end while (input_byte != 8'hFE);
 
                 $display("SD-CARD: GOT THE TOKEN FROM THE MASTER!");
-                fd = $fopen("sdcard.img", "w");
 
                 //Write 512 bytes of data
+                fd = $fopen("sdcard.img", "w");
                 for (integer k = 0; k < 512; k++)begin
-                    receive_byte(input_byte);
-                    //$display("BYTE FROM MASTER: %02h",input_byte);
-                    
-                    $fwrite(fd, "%c",input_byte);
-                    
+                    receive_byte(input_byte);                    
+                    $fwrite(fd, "%c",input_byte);                    
                 end
-                $fclose(fd);
-                $display("SD-CARD: BLOCK WRITE COMPLETE!"); 
-
+                
                 //CRC -> not implemented yet
+
+                $fclose(fd);
+                $display("SD-CARD: BLOCK WRITE COMPLETE!");                
+
             end
-
-
 
             else begin
                 //Send regular CMD response
@@ -204,7 +179,7 @@ module vip_sd_card #(
                 end
             end
             rsp = 0;
-        end while(rsp); // TODO TEST cs interrupt in the middle of transfer functionality
+        end while(rsp);
         miso_gen_end_flag = 1;
         $display("\t###SD-CARD: Task miso_generate reached its end ###");
         
@@ -212,9 +187,7 @@ module vip_sd_card #(
 
     task automatic detect_CMD_and_CRC();
         data_packet = 0;
-        cmd_crc_check_end_flag = 0;
-        // wait for sclk since the sd card operates only when sclk is provided
-        //@(posedge sclk);
+        cmd_crc_check_end_flag = 0;        
 
         // cs and mosi should be high for powerup, when cs goes low, we read mosi
         @(negedge mosi);

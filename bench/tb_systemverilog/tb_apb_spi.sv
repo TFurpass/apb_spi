@@ -1,11 +1,11 @@
-/*  This testbench checks mandatory phases used in initialization (CMD0-CMD58)
+/*  This testbench checks mandatory phases used in SD-card initialization (CMD0-CMD58)
 //  and single block read/write operation (CMD17,CMD24) with the SD-card emulator.
 //  
 //  
 //  Doesn't include at the moment:
 //      -> CID/CSD checks
-//      -> CRC calculation and checking during single block read/write 
-//      -> Doesn't consider delays that occurs during SD-card communications
+//      -> CRC calculation and checking during single block read/write  (CRC hardcoded during CMDs)
+//      -> Doesn't consider delays that occur during SD-card communications
 //      
 */      
 module tb_apb_spi #() ();
@@ -19,8 +19,9 @@ module tb_apb_spi #() ();
     ) apb_bus ();
  
     logic [31:0] cmd;
-        logic [31:0] addr;
-        logic [31:0] fifo;
+    logic [31:0] addr;
+    logic [31:0] fifo;
+    
     // Unused out & in of DUT
     logic   unused_out, unused_in;
     logic [7:0] cmd_num [0:6] = '{0, 8, 55, 41, 58, 17, 24}; 
@@ -36,6 +37,7 @@ module tb_apb_spi #() ();
 
     int RW_test_amount = 4;
 
+    
     // TODO correct bit widths
     logic [8:0] DUT_STATUS_REG; // shows STATUS_REG signals
     logic [7:0] REG_CLKDIV; 
@@ -92,7 +94,7 @@ module tb_apb_spi #() ();
             
         join
         
-        //Run through init phases
+        /*INIT PHASES*/
         for(int i = 0; i< 5; i++) begin
             fork
                 i_sd_card.miso_generate();
@@ -126,25 +128,12 @@ module tb_apb_spi #() ();
                 join
        
         end
+
         //END SIMULATION
         $finish(0);
 
     end
-/*    
-
-    // Debugging
-    // ---
-    always@(posedge spi_clk) begin
-        if(!csn) begin
-            mosi_val[0] = mosi;
-            mosi_val = mosi_val << 1;
-        end
-            counter += 1;
-    end
-    always@(posedge csn)begin
-         mosi_val = mosi_val >> 1;
-    end
- */      
+      
     assign cmd = mosi_val[95:64];
     assign addr = mosi_val[63:32];
     assign fifo = mosi_val[31:0];
