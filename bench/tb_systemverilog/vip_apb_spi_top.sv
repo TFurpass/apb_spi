@@ -59,6 +59,12 @@ module vip_apb_spi #() (
         '{12'(`TXFIFO_ADDR), 32'hFFFFFFFF},
         '{12'(`STATUS_ADDR), 32'h02}
     };
+
+     apb_addr_data sclk_25 [0:2]='{
+        '{12'(`SPILEN_ADDR), 32'h00500000},
+        '{12'(`TXFIFO_ADDR), 32'hFFFFFFFF},
+        '{12'(`STATUS_ADDR), 32'h02}
+    };
    
     apb_addr_data cmd_apb_write_config [0:2] = '{
         '{12'(`SPILEN_ADDR), 32'h00300000},
