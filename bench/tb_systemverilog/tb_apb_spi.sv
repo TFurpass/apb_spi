@@ -1,4 +1,13 @@
-
+/*  This testbench checks mandatory phases used in SD-card initialization (CMD0-CMD58)
+//  and single block read/write operation (CMD17,CMD24) with the SD-card emulator.
+//  
+//  
+//  Doesn't include at the moment:
+//      -> CID/CSD checks
+//      -> CRC calculation and checking during single block read/write  (CRC hardcoded during CMDs)
+//      -> Doesn't consider delays that occur during SD-card communications
+//      
+*/      
 module tb_apb_spi #() ();
 
     logic clk, rst_n;
@@ -10,8 +19,9 @@ module tb_apb_spi #() ();
     ) apb_bus ();
  
     logic [31:0] cmd;
-        logic [31:0] addr;
-        logic [31:0] fifo;
+    logic [31:0] addr;
+    logic [31:0] fifo;
+    
     // Unused out & in of DUT
     logic   unused_out, unused_in;
     logic [7:0] cmd_num [0:6] = '{0, 8, 55, 41, 58, 17, 24}; 
@@ -25,6 +35,9 @@ module tb_apb_spi #() ();
     logic acmd_no_rsp;
     bit card_found;
 
+    int RW_test_amount = 4;
+
+    
     // TODO correct bit widths
     logic [8:0] DUT_STATUS_REG; // shows STATUS_REG signals
     logic [7:0] REG_CLKDIV; 
@@ -81,43 +94,47 @@ module tb_apb_spi #() ();
             
         join
         
-
-        for(integer i = 0; i< 7; i++) begin
+        /*INIT PHASES*/
+        for(int i = 0; i< 5; i++) begin
             fork
                 i_sd_card.miso_generate();
                 i_sd_card.detect_CMD_and_CRC();
                 i_vip.CMD(cmd_num[i]);
             join_none
-
-            wait(i_vip.cmd_task_done & i_sd_card.miso_gen_end_flag & i_sd_card.cmd_crc_check_end_flag);
+            #50ns;
+            wait(i_vip.cmd_task_done && i_sd_card.miso_gen_end_flag && i_sd_card.cmd_crc_check_end_flag);
             
             //if the cmd executed is ACMD41 and card responded busy, loop back to cmd55
             if((cmd_num[i] == 41) & i_vip.acmd_no_rsp) i -= 2;
+            #10ns;
 
         end
-       /*  fork
-            i_sd_card.miso_generate();
-            i_sd_card.detect_CMD_and_CRC();
-            i_vip.CMD(cmd_num[6]);
-        join_none
+        
+        /* READ/WRITE TESTS */
+        for (int i = 0; i < RW_test_amount; i++)begin            
+                //CMD24 write random data to the image
+                fork
+                    $display("TEST %0d: WRITE RANDOM DATA",i);
+                    i_sd_card.miso_generate();
+                    i_sd_card.detect_CMD_and_CRC();
+                    i_vip.CMD(cmd_num[6]);
+                join
 
-        wait(i_vip.cmd_task_done & i_sd_card.miso_gen_end_flag & i_sd_card.cmd_crc_check_end_flag); */
-    end
-    
-
-    // Debugging
-    // ---
-    always@(posedge spi_clk) begin
-        if(!csn) begin
-            mosi_val[0] = mosi;
-            mosi_val = mosi_val << 1;
-        end
-            counter += 1;
-    end
-    always@(posedge csn)begin
-         mosi_val = mosi_val >> 1;
-    end
+                //CMD17 read if the written random data was stored correctly
+                fork
+                    $display("TEST %0d: READ RANDOM DATA",i);
+                    i_sd_card.miso_generate();
+                    i_sd_card.detect_CMD_and_CRC();
+                    i_vip.CMD(cmd_num[5]);
+                join
        
+        end
+
+        //END SIMULATION
+        $finish(0);
+
+    end
+      
     assign cmd = mosi_val[95:64];
     assign addr = mosi_val[63:32];
     assign fifo = mosi_val[31:0];

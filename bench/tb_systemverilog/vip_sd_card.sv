@@ -1,10 +1,5 @@
 //TODO
-// -> FIX magic numbers
-// -> FIX static lengths
-// -> CHECK constants (CMDs, OCR, others) from here and tb itself
 // -> Create function for CRC calculation -> OPTIONAL
-
-
 
 module vip_sd_card #(
 ) (
@@ -18,21 +13,16 @@ module vip_sd_card #(
     ocr_t ocr = '{1'b0, 1'b0, 1'b0, 4'b0, 9'h1FF, 7'hFF, 1'b0, 7'hFF};
 
 
-   //Open generated sd-card image
+   //Check if the dummy SD-card image exists
     integer fd;
     byte sector_buf[512];
     initial begin
-        fd = $fopen("sdcard.img", "r+b");
+        fd = $fopen("sdcard.img", "r");
         if (fd == 0) begin
-        $display("Failed to open disk image!");
+        $display("Failed to open the SD-card image!");
         $finish;
-        end
-
-        //Read initial values of the image to buffer
-        else begin
-            $fread(sector_buf,fd);
-        end
-
+        end        
+        $fclose(fd);
     end
 
 
@@ -51,11 +41,11 @@ module vip_sd_card #(
     sd_cmd_t rx_cmd;
 
     localparam sd_cmd_t SD_CMDS[7] = '{
-        '{8'h40, 8'h95, 40'h01,         1,  0,  0}, // CMD0 -> R1=0x01
-        '{8'h48, 8'h87, 40'h01000001AA, 5,  0,  0}, // CMD8 -> R7
+        '{8'h40, 8'h95, 40'h01,         1,  0,  0}, // CMD0
+        '{8'h48, 8'h87, 40'h01000001AA, 5,  0,  0}, // CMD8
         '{8'h77, 8'h65, 40'h01,         1,  0,  0}, // CMD55
         '{8'h69, 8'h77, 40'h00,         1,  0,  0}, // ACMD41
-        '{8'h7A, 8'hFD, 40'h0040FF8000, 5,  0,  0}, // CMD58 -> R3 -> CHECK IF THIS IS CORRECT!
+        '{8'h7A, 8'hFD, 40'h0040FF8000, 5,  0,  0}, // CMD58
         '{8'h51, 8'h55, 40'h00,         1,  1,  0}, // CMD17 BLOCK READ
         '{8'h58, 8'h6F, 40'h00,         1,  0,  1}  // CMD24 BLOCK WRITE
     };
@@ -78,33 +68,29 @@ module vip_sd_card #(
     bit rsp = 0;
     logic miso_line;
     logic [39:0] tx;
-    logic [7:0] block_byte;
-    int byte_idx;
-    int bit_cnt;
 
     // "task reaches end" flags
     bit miso_gen_end_flag, cmd_crc_check_end_flag;
 
     // does not take into account interruptions in sclk 
     task automatic powerup(logic mosi, logic cs, logic sclk);
-
         logic [7:0] cycle_cnt = 0;
         @(posedge sclk);
-    
+
         for (cycle_cnt = 0; cycle_cnt < 74; cycle_cnt++) begin
             if(~cs | ~mosi) begin
-                $display("\tpowerup of an sd card needs atleast 74 sclk cycles where cs & mosi are high");
+                $display("\tSD-CARD: powerup of an sd card needs atleast 74 sclk cycles where cs & mosi are high");
             end
             @(posedge sclk);
         end
-        $display("\tpowerup finished correctly, CMD0 can be sent.");
+        $display("\tSD-CARD: powerup finished correctly, CMD0 can be sent.");
     endtask
 
 
-    task automatic send_byte;
-        input [7:0] data_byte;
-        reg [7:0] tmp_byte;
-        
+    task automatic send_byte(
+        input [7:0] data_byte
+    );
+        logic [7:0] tmp_byte;        
         begin
             tmp_byte = data_byte;
             for (integer j = 0; j < 8; j++)begin
@@ -115,49 +101,74 @@ module vip_sd_card #(
         end
     endtask
 
-
+    task automatic receive_byte(
+        output [7:0] data_byte
+    );
+        logic [7:0] tmp_byte;
+        begin
+            tmp_byte = 8'h00;
+            for (integer j = 0; j < 8; j++) begin
+                @(posedge sclk);
+                tmp_byte[7-j] = mosi;             
+                data_byte = tmp_byte;    
+            end
+        end
+    endtask
+    
     task automatic miso_generate();
-    // TODO Add block read and write action
         miso_gen_end_flag = 0;
-        do begin
+        do begin            
             while(~rsp) begin 
                 miso_line = 1;
-                @(posedge sclk);
-            end;
-
-            // simulate delay, sd card is aligned with sclk in 8 bit counts for all data it sends and evaluates.
-            for (integer i = 0; i< 8; i++) begin
                 @(negedge sclk);
-                miso_line = 1;
-            end
-
-            // STUBS for block read and block write
+            end;                        
+            
             if (rx_cmd.read_block) begin
-                $display("START BLOCK READ!\n");
+                $display("SD-CARD: START BLOCK READ!\n");
+                
                 //Send token
                 send_byte(8'hFE);
-                $display("TOKEN SENDED!\n");
+                $display("SD-CARD: TOKEN SENDED!\n");
 
-                //Send 512bytes of data
+                //Read image
+                fd = $fopen("sdcard.img", "r");
+                $fread(sector_buf,fd);
+                $fclose(fd);
+        
+                //Send 512 bytes of data
                 for (integer k = 0; k < 512; k++)begin
                     send_byte(sector_buf[k]);
                 end
 
-                //SEND CRC -> not implemented yet.
+                //SEND CRC -> not implemented
 
             end
 
             else if (rx_cmd.write_block) begin
-                $display("START BLOCK WRITE!\n");
-                //Wait for token
-                $display("GOT THE TOKEN FROM THE MASTER!\n");
+                logic [7:0] input_byte;
+                
+                $display("SD-CARD: START BLOCK WRITE!");
 
-                //BLOCK WRITING ACTION..
+                // Read bytes until start token 0xFE is received
+                do begin
+                    receive_byte(input_byte);
+                end while (input_byte != 8'hFE);
 
+                $display("SD-CARD: GOT THE TOKEN FROM THE MASTER!");
+
+                //Write 512 bytes of data
+                fd = $fopen("sdcard.img", "w");
+                for (integer k = 0; k < 512; k++)begin
+                    receive_byte(input_byte);                    
+                    $fwrite(fd, "%c",input_byte);                    
+                end
+                
                 //CRC -> not implemented yet
+
+                $fclose(fd);
+                $display("SD-CARD: BLOCK WRITE COMPLETE!");                
+
             end
-
-
 
             else begin
                 //Send regular CMD response
@@ -168,17 +179,15 @@ module vip_sd_card #(
                 end
             end
             rsp = 0;
-        end while(rsp); // TODO TEST cs interrupt in the middle of transfer functionality
+        end while(rsp);
         miso_gen_end_flag = 1;
-        $display("\t### Task miso_generate reached its end ###");
+        $display("\t###SD-CARD: Task miso_generate reached its end ###");
         
     endtask
 
     task automatic detect_CMD_and_CRC();
         data_packet = 0;
-        cmd_crc_check_end_flag = 0;
-        // wait for sclk since the sd card operates only when sclk is provided
-        //@(posedge sclk);
+        cmd_crc_check_end_flag = 0;        
 
         // cs and mosi should be high for powerup, when cs goes low, we read mosi
         @(negedge mosi);
@@ -203,7 +212,7 @@ module vip_sd_card #(
                         //Copy the matching command from the table
                         rx_cmd = SD_CMDS[i];
                         cmd = cmd_num'(rx_cmd.cmd);
-                        $display("%s detected, CRC: %2h\n", cmd.name(),rx_cmd.crc);
+                        $display("SD-CARD: %s detected, CRC: %2h\n", cmd.name(),rx_cmd.crc);
                         rsp = 1;
                     end
                 end
@@ -212,7 +221,7 @@ module vip_sd_card #(
             end
         end while (~cs & ~rsp);
         cmd_crc_check_end_flag = 1;
-        $display("\t### Task detect_CMD_and_CRC has reached its end ###");
+        $display("\t###SD-CARD: Task detect_CMD_and_CRC has reached its end ###");
     endtask
 
     assign miso = miso_line;
