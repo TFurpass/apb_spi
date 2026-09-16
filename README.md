@@ -1,4 +1,20 @@
+# APB_SPI Controller with Systemverilog and C++ Testbenches
 
+This repository uses the PULP Platforms APB_SPI controller. With small changes to software reset and a cs_trail added to the STATUS_REG of the IP's register interface.  
+The SPI cntroller was used in pulpino, datasheet (section 5.3 SPI Master) https://www.pulp-platform.org/docs/pulpino_datasheet.pdf  
+
+This repo contains a C++ Testbench from ZipCpu/sdspi (Dan Gisselquist), which was modified to use APB instead of wishbone for driving the SPI-Controller.  
+A Systemverilog testbench has also been implemented.  
+
+The C++ TB has assertions so it is safer to run if modifying the IP, Systemverilog testbench in its current state does only printouts. Both generate waveforms that can be analysed with gtkwave. 
+
+To run the tesbenches:  
+	make sv_tb in the root of the repository to compile and run the systemverilog testbench.
+	./rtl/compile_tb.sh for the C++ testbench.
+
+Tools:  
+- Verilator (5.020 & 5.050) tested
+- bender (0.32.1) install bender and run bender update in the root of the repository
 
 # SPI controller input/config for SD-card communication
 
@@ -77,7 +93,7 @@ For RESPONSES the RXFIFO length needs to be long enough to give the sd card time
 
 
 ### **STATUS REG, start write to sd-card**
-``Note: if spicmd and spiaddr have length set to larger than 0, they are sent before sending from txfifo, all of the data in these registers will be chained together``
+`Note: if spicmd and spiaddr have length set to larger than 0, they are sent before sending from txfifo, all of the data in these registers will be chained together`
 
 PWDATA 32'h0122 starts a standard SPI write transaction, using chip select cs0, setting a chip_select trail bit to ensure that the cs0 stays low between transfer and receive states. SPILEN, CLKDIV, and TXFIFO should be written before STATUS is written.  
 
@@ -91,10 +107,6 @@ STATUS should be written to only when the spi_master_controller is in the idle s
 | Config status reg to initiate reception of data                                 | PADDR            | PWDATA   |
 | ------------------------------------------------------------------------------- | ---------------- | -------- |
 | Set spi controller to read with normal SPI, chipselect to cs0 and cs trail to 1 | BASE ADDR + 0x00 | 32'h0121 |
-
-### Powerup
-
-**TODO test how powerup works best**
 
 ## SD-card INIT
 
@@ -137,9 +149,9 @@ STATUS should be written to only when the spi_master_controller is in the idle s
 | 32'h7A000000 |
 | 32'h00000001 |
 
-**INIT Ohi**
+**INIT Done**
 
-### **CMD16** stes block len to 512 (ensures older cards follow the same partioning of data as newer cards do, wont affect newer cards)
+### **CMD16** sets block len to 512 (ensures older cards follow the same partioning of data as newer cards do, wont affect newer cards)
 
 | PWDATA       |
 | ------------ |
