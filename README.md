@@ -114,6 +114,14 @@ STATUS should be written to only when the spi_master_controller is in the idle s
 
 ## SD-card INIT
 
+To drive a cmd to the sd card: SPI_LEN register must be configured with fifo length and optionally cmd and adr registers that are used as buffers for sending the serial data once spi write has been written to the STATUS_REG.
+
+We configured only the FIFO depth for sneding our CMDs and data. 
+As an example to send CMD0 to the sd-card we configure the SPILEN register with 32'h00300000 which sets the fifo depth to 48 bits for the sd-card CMD length, then the TXFIFO is written with the CMD0 data in two commands like shown below, finally the STATUS_REG is written with 32'h0121 to configure chipselect, cs_trail and spi write.
+
+Writing the STATUS_REG with the spi_write initiates the transfer from the fifo for the duration of sclk cycles defined based on the SPILEN. Note that we also defined the CLKDIV value based off our system clock and sd-specification for the init phase. 
+
+The PWDATA width is only 32 bits so to write more into the fifo just means writing several 32 bit values. The values are written MSB first and then shifted to the left.
 ### **CMD0**
 
 | PWDATA       |
