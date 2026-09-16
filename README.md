@@ -45,7 +45,7 @@ BASEADDR DEFAULT = 0x0000 0000 Can be changed to what ever value, APB_SPI_CONTRO
 ### CLKDIV
 CLKDIV defines the time it takes for the clock to change polarity
 **For SD-card init CMD0-CMD58 set CLKDIV so that 2xSYSTEM_CLK/CLKDIV=400kHz i.e. CLKDIV = 2xSYSTEMCLK/400kHz**  
-**After that SCLK can be increased to 25-50MHz, The SPI-mode can not check card capabilities for speed, it treats all cards as class 0 speed cards (card can not specify performance) High speed is stated to be the same as SD-bus mode which would promise up to 50MHz 3.3V signaling.**
+**After that SCLK can be increased to 25-50MHz, The SPI-mode can not check card capabilities for data throughput, it treats all cards as class 0 speed cards (card can not specify performance) High speed is stated to be the same as SD-bus mode which would promise up to 50MHz 3.3V signaling.**
 
 SDHC and SDXC cards (most modern cards) support 50MHz but older SDSC cards do not support anymore than 25MHz. There are apparently some SDHC cards that do not support 50MHz.
 
