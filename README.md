@@ -134,8 +134,8 @@ The PWDATA width is only 32 bits so to write more into the fifo just means writi
 
 | PWDATA       |
 | ------------ |
-| 32'h48000000 |
-| 32'h0001AA87 |
+| 32'h48000001 |
+| 32'hAA870000 |
 
 
 ### **CMD55**
@@ -143,15 +143,15 @@ The PWDATA width is only 32 bits so to write more into the fifo just means writi
 | PWDATA       |
 | ------------ |
 | 32'h77000000 |
-| 32'h00000001 |
+| 32'h00650000 |
 
 
 ### **ACMD41**
 
 | PWDATA       |
 | ------------ |
-| 32'h69000000 |
-| 32'h00000001 |
+| 32'h69400000 |
+| 32'h00770000 |
 
 
 ### **CMD58** 
@@ -159,7 +159,7 @@ The PWDATA width is only 32 bits so to write more into the fifo just means writi
 | PWDATA       |
 | ------------ |
 | 32'h7A000000 |
-| 32'h00000001 |
+| 32'h00FD0000 |
 
 **INIT Done**
 
@@ -169,8 +169,8 @@ Sets block len to 512 (ensures older cards follow the same partioning of data as
 
 | PWDATA       |
 | ------------ |
-| 32'h50000000 |
-| 32'h00020001 |
+| 32'h50000001 |
+| 32'h00150000 |
 
 ## WRITE COMMANDS
 
@@ -178,7 +178,7 @@ Sets block len to 512 (ensures older cards follow the same partioning of data as
 | PWDATA       |
 | ------------ |
 | 32'h58000000 |
-| 32'h00000001 |
+| 32'h006F0000 |
 
 ## READ COMMANDS
 
@@ -186,5 +186,5 @@ Sets block len to 512 (ensures older cards follow the same partioning of data as
 | PWDATA       |
 | ------------ |
 | 32'h51000000 |
-| 32'h00000001 |
+| 32'h00550000 |
 
