@@ -16,6 +16,10 @@ Tools:
 - Verilator (5.020 & 5.050) tested
 - bender (0.32.1) install bender and run bender update in the root of the repository
 
+## Documentation
+
+The doc/ folder consists of notes on the spi and using spi with an sd-card. A links file holds some reading material off the internet.
+
 # SPI controller input/config for SD-card communication
 
 BASEADDR DEFAULT = 0x0000 0000 Can be changed to what ever value, APB_SPI_CONTROLLER registers memory mapped:
@@ -151,7 +155,9 @@ STATUS should be written to only when the spi_master_controller is in the idle s
 
 **INIT Done**
 
-### **CMD16** sets block len to 512 (ensures older cards follow the same partioning of data as newer cards do, wont affect newer cards)
+### **CMD16** 
+
+Sets block len to 512 (ensures older cards follow the same partioning of data as newer cards do, wont affect newer cards)
 
 | PWDATA       |
 | ------------ |
