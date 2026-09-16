@@ -3,16 +3,16 @@ To drive the SPI controller using the APB register interface: write the register
 Below the data used in the systemverilog testbench to drive init (provide 80 clk cycles of sclk to the sd card), set sclk to 25MHz after init phase is over 
 configure the registers for single block data read and write, and all the cmd configs for init and single write/read.
 
-REG_STATUS 4'b0000 // BASEREG + 0x00
-REG_CLKDIV 4'b0001 // BASEREG + 0x04
-REG_SPICMD 4'b0010 // BASEREG + 0x08
-REG_SPIADR 4'b0011 // BASEREG + 0x0C
-REG_SPILEN 4'b0100 // BASEREG + 0x10
-REG_SPIDUM 4'b0101 // BASEREG + 0x14
-REG_TXFIFO 4'b0110 // BASEREG + 0x18
-REG_RXFIFO 4'b1000 // BASEREG + 0x20
-REG_INTCFG 4'b1001 // BASEREG + 0x24
-REG_INTSTA 4'b1010 // BASEREG + 0x28
+REG_STATUS 4'b0000 // BASEREG + 0x00  
+REG_CLKDIV 4'b0001 // BASEREG + 0x04  
+REG_SPICMD 4'b0010 // BASEREG + 0x08  
+REG_SPIADR 4'b0011 // BASEREG + 0x0C  
+REG_SPILEN 4'b0100 // BASEREG + 0x10  
+REG_SPIDUM 4'b0101 // BASEREG + 0x14  
+REG_TXFIFO 4'b0110 // BASEREG + 0x18  
+REG_RXFIFO 4'b1000 // BASEREG + 0x20  
+REG_INTCFG 4'b1001 // BASEREG + 0x24  
+REG_INTSTA 4'b1010 // BASEREG + 0x28  
 
 ```
 	 apb_addr_data init_apb [0:3]='{
