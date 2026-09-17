@@ -49,7 +49,7 @@ Bit 31:16 DUMMYWR writes dummy cycles, used in power up before init, atleast 74 
 
 Bit 15:0 DUMMYRD same as for write.
 
-Mentioned in a masters thesis: https://repository.rit.edu/cgi/viewcontent.cgi?article=10950&context=theses that "To manage clock domain crossing or prevent data getting skipped, 8 pulses are inserted between command and response." The exact amount of dummy cycles needed needs to be confirmed but the sd card reads all data with a counter in groups of 8 based on 8 cycles of the sclk.
+Mentioned in a masters thesis: https://repository.rit.edu/cgi/viewcontent.cgi?article=10950&context=theses that "To manage clock domain crossing or prevent data getting skipped, 8 pulses are inserted between command and response." The exact amount of dummy cycles needed, needs to be confirmed but the sd card reads all data with a counter in groups of 8 based on 8 cycles of the sclk.
 
 ### TXFIFO
 
@@ -61,7 +61,7 @@ Bit 31:0 RX read data from fifo.
 
 ### INTCFG Interrupt configuration
 
-data sheet has blank but holds: EN, CNTEN, CNTRX, CNTTX, RHTX, THTX
+datasheet has blank but holds: EN, CNTEN, CNTRX, CNTTX, RHTX, THTX
 
 For defining interrupt triggers when an RX transfer count reaches a defined value. H marking half for both rx and tx indicating fifo reaching or dropping over/under a threshold. Used for indicating an empty or full fifo.
 

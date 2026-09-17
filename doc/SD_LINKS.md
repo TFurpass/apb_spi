@@ -3,12 +3,12 @@
 
 Power on  
 Keep CS (chip select) high  
-Send at least 74 dummy clock pulses  
+Send at least 74 (preferably 80) dummy clock pulses and provide MOSI high  
 Pull CS low  
 Send CMD0 to access idle state  
 Send CMD8 to check the voltage range and card version  
 Repeatedly send CMD55 + ACMD41 until the card leaves idle state (R1=0x00)  
-Detect whether the card is SDHC/SDXC or SDSC  
+CMD58 Detect whether the card is SDHC/SDXC or SDSC  
 Increase the SPI speed  
 - https://skoopsy.dev/stm32/2026/06/09/STM32-13-sd-card-transport.html
 

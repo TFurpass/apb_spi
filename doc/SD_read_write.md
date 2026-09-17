@@ -2,11 +2,13 @@
 
 # SD READ and WRITE
 
-called Tokens, which the card uses to respond to host when reading and writing transmissions can occur or if errors have occured
+These are called Tokens, which the card uses to respond to host when reading and writing transmissions can occur or if errors have occured
 
 0xFC   Start multiple-block write
 0xFD   Stop transmission token
 0xFE   Data block token (After init, when reading with CMD17 or CMD18, this token is the successful response that is needed before reading can start).
+
+Refer to SD Specifications Part 1 Physical Layer Simplified Specification multiple write and read for more information.
 
 ### Read Commands 
 

@@ -37,6 +37,26 @@ BASEADDR DEFAULT = 0x0000 0000 Can be changed to what ever value, APB_SPI_CONTRO
 | REG_INTCFG | BASEREG + 0x24 | Enables interrupt, has counters for RX, TX, RHTX and THTX, documentation on these in pulpino datasheet is not fully written, yet to be figured out the bit positions |
 | REG_INTSTA | BASEREG + 0x28 | --- |
 
+# SPI ports
+
+| SIGNAL | Direction  | Description |
+| --- | --- | --- |
+|spiclk| output | Masterclk |
+|spi_csn0|output| Chip select 0|
+|spi_csn1|output| Chip select 1|
+|spi_csn2|output| Chip select 2|
+|spi_csn3|output| Chip select 3|
+|spi_mode[1:0]|output| SPI mode|
+|spi_sdo0|output| Output line MOSI|
+|spi_sdo1|output| Output line MOSI|
+|spi_sdo2|output| Output line MOSI|
+|spi_sdo3|output| Output line MOSI|
+|spi_sdo0|input| Input line MISO|
+|spi_sdo1|input| Input line MISO|
+|spi_sdo2|input| Input line MISO|
+|spi_sdo3|input| Input line MISO|
+|Event_o[1:0]|output| Event/Interrupt|
+
 | COMMAND | Purpose                                                      | Dataline (MOSI)   | Response + info                                     |
 | ------- | ------------------------------------------------------------ | ----------------- | --------------------------------------------------- |
 | CMD0    | Reset card and request SPI mode                              | 40 00 00 00 00 95 | R1 = 0x01 idle state entered                        |

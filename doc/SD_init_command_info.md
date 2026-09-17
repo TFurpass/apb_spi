@@ -39,4 +39,5 @@ Commands start from MSB to LSB with a start_bit (0) and transmission_bit (1), af
 
 CS (or SSEL) is set high after this and SCLK can be increased.
 
-    - check response format from simplified datasheet physical layer https://www.sdcard.org/downloads/pls/pdf/?p=Part1_Physical_Layer_Simplified_Specification_Ver9.10.jpg&f=Part1PhysicalLayerSimplifiedSpecificationVer9.10Fin_20231201.pdf&e=EN_SS9_1 
+    check response format from simplified datasheet physical layer 
+    https://www.sdcard.org/downloads/pls/pdf/?p=Part1_Physical_Layer_Simplified_Specification_Ver9.10.jpg&f=Part1PhysicalLayerSimplifiedSpecificationVer9.10Fin_20231201.pdf&e=EN_SS9_1 
