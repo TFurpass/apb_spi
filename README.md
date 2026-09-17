@@ -9,7 +9,7 @@ A Systemverilog testbench has also been implemented.
 The C++ TB has assertions so it is safer to run if modifying the IP, Systemverilog testbench in its current state does only printouts. Both generate waveforms that can be analysed with gtkwave. 
 
 To run the tesbenches:  
-	make sv_tb in the root of the repository to compile and run the systemverilog testbench.
+	make sv_tb in the root of the repository to compile and run the systemverilog testbench.  
 	./rtl/compile_tb.sh for the C++ testbench.
 
 Tools:  
@@ -24,18 +24,18 @@ The doc/ folder consists of notes on the spi and using spi with an sd-card. A li
 
 BASEADDR DEFAULT = 0x0000 0000 Can be changed to what ever value, APB_SPI_CONTROLLER registers memory mapped:
 
-| REGISTER   | ADDR           |
-| ---------- | -------------- |
-| REG_STATUS | BASEREG + 0x00 |
-| REG_CLKDIV | BASEREG + 0x04 |
-| REG_SPICMD | BASEREG + 0x08 |
-| REG_SPIADR | BASEREG + 0x0C |
-| REG_SPILEN | BASEREG + 0x10 |
-| REG_SPIDUM | BASEREG + 0x14 |
-| REG_TXFIFO | BASEREG + 0x18 |
-| REG_RXFIFO | BASEREG + 0x20 |
-| REG_INTCFG | BASEREG + 0x24 |
-| REG_INTSTA | BASEREG + 0x28 |
+| REGISTER   | ADDR           | Description |
+| ---------- | -------------- | --- |
+| REG_STATUS | BASEREG + 0x00 | Controls chipselect pins 3:0 |
+| REG_CLKDIV | BASEREG + 0x04 | Divides system clk to provide sclk with required frequency |
+| REG_SPICMD | BASEREG + 0x08 | 32 bit register which can be used for output (MOSI) | 
+| REG_SPIADR | BASEREG + 0x0C | 32 bit register, also used for MOSI |
+| REG_SPILEN | BASEREG + 0x10 | Sets the bit width of TX/RX FIFO (set bits 31:16), SPICMD_REG (set bits 5:0), & SPIADR_REG (set bits 13:8) |
+| REG_SPIDUM | BASEREG + 0x14 | Setting a value to bits 31:16 activates a setting to write dummy cycles between sending SPICMD & SPIADR with mosi low, providing sclk. Bits 15:0 do the same for read | 
+| REG_TXFIFO | BASEREG + 0x18 | Data to be buffered to MOSI after registers SPICMD & SPIADR have been sent (note if spicmd and adr length have been defined as 0 in SPILEN register, then the IP will only use the FIFO) |
+| REG_RXFIFO | BASEREG + 0x20 | Same as TX but for receiving data |
+| REG_INTCFG | BASEREG + 0x24 | Enables interrupt, has counters for RX, TX, RHTX and THTX, documentation on these in pulpino datasheet is not fully written, yet to be figured out the bit positions |
+| REG_INTSTA | BASEREG + 0x28 | --- |
 
 | COMMAND | Purpose                                                      | Dataline (MOSI)   | Response + info                                     |
 | ------- | ------------------------------------------------------------ | ----------------- | --------------------------------------------------- |
