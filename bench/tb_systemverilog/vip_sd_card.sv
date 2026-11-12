@@ -132,7 +132,7 @@ module vip_sd_card #(
                 
                 //Send token
                 send_byte(8'hFE);
-                $display("SD-CARD: TOKEN SENDED!\n");
+                $display("SD-CARD: TOKEN SENT!\n");
 
                 //Read image
                 fd = $fopen("sdcard.img", "r");
@@ -191,17 +191,20 @@ module vip_sd_card #(
 
     task automatic detect_CMD_and_CRC();
         data_packet = 0;
-        cmd_crc_check_end_flag = 0;        
-
-        // cs and mosi should be high for powerup, when cs goes low, we read mosi
-        @(negedge mosi);
+        cmd_crc_check_end_flag = 0;
+        cmd_detected = 0;
+        // cs and mosi should be high for powerup, when cs & mosi go low, transfer is initiated
+        do begin
+            @(posedge sclk);
+        end while (~(~cs & ~mosi));
 
         //CMD and CRC reading
-        do begin @(posedge sclk);
+        do begin  : Check_cmd
             data_packet[0] =  mosi;
-            counter++; 
-            if (counter < 8'd48) begin
+            counter++;
+            if (counter < 8'd48) begin : read_mosi
                 data_packet =  data_packet << 1;
+                @(posedge sclk);
             end
             else begin
                 counter = 0;
@@ -210,17 +213,20 @@ module vip_sd_card #(
                 rx_cmd.cmd = {data_packet[47:40]};
 
                 //Search matching command from the structure
-                foreach (SD_CMDS[i]) begin
-                    if (SD_CMDS[i].cmd == rx_cmd.cmd &&
-                        SD_CMDS[i].crc == rx_cmd.crc) begin
+                foreach (SD_CMDS[i]) begin : search_for_cmd
+                    if (SD_CMDS[i].cmd == rx_cmd.cmd) begin
+
                         //Copy the matching command from the table
                         rx_cmd = SD_CMDS[i];
                         cmd = cmd_num'(rx_cmd.cmd);
                         $display("SD-CARD: %s detected, CRC: %2h\n", cmd.name(),rx_cmd.crc);
                         rsp = 1;
+                        cmd_detected = 1;
                     end
                 end
                 @(posedge sclk);
+                assert(cmd_detected== 1)
+                    else $fatal(0, "\nReceived CMD does not match INIT COMMANDS or One block READ OR WRITE");
                 data_packet = 0;
             end
         end while (~cs & ~rsp);
