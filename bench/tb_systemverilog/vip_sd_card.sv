@@ -75,11 +75,15 @@ module vip_sd_card #(
     // does not take into account interruptions in sclk 
     task automatic powerup(logic mosi, logic cs, logic sclk);
         logic [7:0] cycle_cnt = 0;
+    // does not take into account interruptions in sclk
+    task automatic powerup();
+    $display("\tSD-CARD powerup start");
         @(posedge sclk);
 
         for (cycle_cnt = 0; cycle_cnt < 74; cycle_cnt++) begin
-            if(~cs | ~mosi) begin
-                $display("\tSD-CARD: powerup of an sd card needs atleast 74 sclk cycles where cs & mosi are high");
+            assert(cs & mosi);
+            else begin
+                $fatal(0,"\nSD-CARD: powerup of an sd card needs atleast 74 sclk cycles where cs & mosi are high");
             end
             @(posedge sclk);
         end
