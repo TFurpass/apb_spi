@@ -347,6 +347,7 @@ module vip_apb_spi #() (
                 ACMDR1: begin
                     if(fifodata[7:0] == 00) begin
                         read_rsp = 1;
+                        acmd_no_rsp = 0;
                         $display("Response : 00 Card is ready");
                     end
                     if(fifodata[7:0] == 01) begin
