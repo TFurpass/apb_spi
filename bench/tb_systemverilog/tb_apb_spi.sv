@@ -1,13 +1,13 @@
 /*  This testbench checks mandatory phases used in SD-card initialization (CMD0-CMD58)
 //  and single block read/write operation (CMD17,CMD24) with the SD-card emulator.
-//  
-//  
+//
+//
 //  Doesn't include at the moment:
 //      -> CID/CSD checks
 //      -> CRC calculation and checking during single block read/write  (CRC hardcoded during CMDs)
 //      -> Doesn't consider delays that occur during SD-card communications
-//      
-*/      
+//
+*/
 module tb_apb_spi #() ();
 
     logic clk, rst_n;
@@ -17,15 +17,15 @@ module tb_apb_spi #() ();
         .ADDR_W(12),
         .DATA_W(32)
     ) apb_bus ();
- 
+
     logic [31:0] cmd;
     logic [31:0] addr;
     logic [31:0] fifo;
-    
+
     // Unused out & in of DUT
     logic   unused_out, unused_in;
-    logic [7:0] cmd_num [0:6] = '{0, 8, 55, 41, 58, 17, 24}; 
-    logic[127:0] mosi_val; 
+    logic [7:0] cmd_num [0:6] = '{0, 8, 55, 41, 58, 17, 24};
+    logic[127:0] mosi_val;
     (* keep *)
     logic [127:0] counter= 0;
     (* keep *)
@@ -37,18 +37,16 @@ module tb_apb_spi #() ();
 
     int RW_test_amount = 4;
 
-    
-    // TODO correct bit widths
     logic [8:0] DUT_STATUS_REG; // shows STATUS_REG signals
-    logic [7:0] REG_CLKDIV; 
-    logic [31:0] REG_SPICMD; 
-    logic [31:0] REG_SPIADR; 
-    logic [27:0] REG_SPILEN; 
-    logic [8:0] REG_SPIDUM; 
-    logic [8:0] REG_TXFIFO; 
-    logic [8:0] REG_RXFIFO; 
-    logic [8:0] REG_INTCFG; 
-    logic [8:0] REG_INTSTA; 
+    logic [7:0] REG_CLKDIV;
+    logic [31:0] REG_SPICMD;
+    logic [31:0] REG_SPIADR;
+    logic [27:0] REG_SPILEN;
+    logic [8:0] REG_SPIDUM;
+    logic [8:0] REG_TXFIFO;
+    logic [8:0] REG_RXFIFO;
+    logic [8:0] REG_INTCFG;
+    logic [8:0] REG_INTSTA;
     logic [3:0] write_address;
 
     assign write_address = i_dut.u_axiregs.write_address;
@@ -71,7 +69,8 @@ module tb_apb_spi #() ();
     assign REG_SPIADR = {
         i_dut.u_axiregs.spi_addr
     };
-    // TODO Other register assignments
+
+    // TODO Other register assignments for faster waveform analysis
     assign DUT_STATUS_REG = {
         i_dut.u_axiregs.spi_csreg,
         i_dut.u_axiregs.spi_swrst,
@@ -92,7 +91,6 @@ module tb_apb_spi #() ();
             i_vip.init();
             i_sd_card.powerup();
         join
-        
         /*INIT PHASES*/
         for(int i = 0; i< 5; i++) begin
             fork
@@ -108,9 +106,9 @@ module tb_apb_spi #() ();
             #10ns;
 
         end
-        
+
         /* READ/WRITE TESTS */
-        for (int i = 0; i < RW_test_amount; i++)begin            
+        for (int i = 0; i < RW_test_amount; i++)begin
                 //CMD24 write random data to the image
                 fork
                     $display("TEST %0d: WRITE RANDOM DATA",i);
@@ -126,14 +124,14 @@ module tb_apb_spi #() ();
                     i_sd_card.detect_CMD_and_CRC();
                     i_vip.CMD(cmd_num[5]);
                 join
-       
+
         end
 
         //END SIMULATION
         $finish(0);
 
     end
-      
+
     assign cmd = mosi_val[95:64];
     assign addr = mosi_val[63:32];
     assign fifo = mosi_val[31:0];
@@ -163,12 +161,12 @@ module tb_apb_spi #() ();
         .spi_sdo1(),
         .spi_sdo2(),
         .spi_sdo3(),
-        .spi_sdi0(), 
+        .spi_sdi0(),
         .spi_sdi1(miso), // connect to SPI SD-Card
         .spi_sdi2(),
         .spi_sdi3()
     );
-    
+
 
     vip_apb_spi #() i_vip (
         .apb_mst (apb_bus.APB_Master),
