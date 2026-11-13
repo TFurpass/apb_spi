@@ -62,13 +62,17 @@ module vip_sd_card #(
         } cmd_num;
     cmd_num cmd;
 
+    logic [4:0] init_cmd_checklist;
     logic [7:0] counter;
     logic [47:0] data_packet;
     // when CRC is detected, rsp is asserted to enable response.
     bit rsp = 0;
     logic miso_line;
     logic [39:0] tx;
-
+    // flag to test how driver handles when card is not immediattely ready after acmd41
+    bit acmd_loop = 0;
+    // counter for testing whether driver gets stuck looping ACMD41
+    logic[3:0] forever_loop = 0;
     // "task reaches end" flags
     bit miso_gen_end_flag, cmd_crc_check_end_flag;
 
@@ -90,6 +94,48 @@ module vip_sd_card #(
         $display("\tSD-CARD: powerup finished correctly, CMD0 can be sent.");
     endtask
 
+    task automatic cmd_checklist(cmd_num cmd);
+        case(cmd)
+            CMD0: begin
+                init_cmd_checklist[0] = 1;
+            end
+            CMD8: begin
+                assert(init_cmd_checklist[0])
+                    else $fatal(0, "\n Expecting CMD0, got %s", cmd.name());
+                init_cmd_checklist[1] = 1;
+            end
+            CMD55:begin
+                assert(init_cmd_checklist[1:0] == 2'b11)
+                    else $fatal(0, "\n Earlier init commands have not been issued, wrong init order, got CMD: %s", cmd.name());
+
+                init_cmd_checklist[2] = 1;
+
+            end
+            ACMD41:begin
+                assert(init_cmd_checklist[1:0] == 2'b11)
+                    else $fatal(0, "\n Earlier init commands have not been issued, wrong init order, got CMD: %s", cmd.name());
+                assert(init_cmd_checklist[2])
+                    else $fatal(0, "\n CMD55 needs to be received before ACMD41, got CMD: %s", cmd.name());
+                if(init_cmd_checklist[3])begin
+                    forever_loop++;
+                    assert(forever_loop!=4'b1111)
+                        else $fatal(0, "\n ACMD41 seems to be looping forever even though 00 response has been sent. \n Max Amount of loops set: 15");
+                end
+                init_cmd_checklist[2] = 0;
+            end
+            CMD58: begin
+                assert(init_cmd_checklist[1:0] == 2'b11)
+                    else $fatal(0, "\n Earlier init commands have not been issued, wrong init order, got CMD: %s", cmd.name());
+                assert(init_cmd_checklist[3])
+                    else $fatal(0, "\n ACMD41 not ready, card never responded with 0");
+                init_cmd_checklist[4]=1;
+            end
+            default: begin
+                assert(init_cmd_checklist == 5'b11111)
+                else $fatal(0, "\n Init has not been completed before read and write");
+            end
+        endcase
+    endtask
 
     task automatic send_byte(
         input [7:0] data_byte
@@ -175,11 +221,48 @@ module vip_sd_card #(
             end
 
             else begin
-                //Send regular CMD response
-                tx = rx_cmd.response << (40-rx_cmd.resp_len*8);
-                for (integer i = 0; i < rx_cmd.resp_len; i++) begin
-                    send_byte(tx[39:32]);
-                    tx = tx << 8;
+                // if cmd is ACMD41 loop the cards response once to test how driver handles ready
+                if((rx_cmd.cmd == SD_CMDS[3].cmd))begin
+
+                    if(!acmd_loop)begin
+                        //Send regular CMD response
+                        tx = 40'h01 << (40-rx_cmd.resp_len*8);
+                        for (integer i = 0; i < rx_cmd.resp_len; i++) begin
+                            send_byte(tx[39:32]);
+                            tx = tx << 8;
+                        end
+                        acmd_loop = 1;
+
+                    end else begin
+
+                        //Send regular CMD response
+                        tx = rx_cmd.response << (40-rx_cmd.resp_len*8);
+                        for (integer i = 0; i < rx_cmd.resp_len; i++) begin
+                            send_byte(tx[39:32]);
+                            tx = tx << 8;
+                        end
+                        if (rx_cmd.cmd ==  SD_CMDS[3].cmd) begin
+                            // ACMD41 check off the list
+                            init_cmd_checklist[3] = 1;
+                            // ACMD55 check off the list
+                            init_cmd_checklist[2] = 1;
+                        end
+                    end
+                // After one response of not ready, send ready response and check ACMD41 off the checklist
+                end else begin
+                    $display("\t###SD-CARD: Task miso_generate reached second acmd ###");
+
+                    //Send regular CMD response
+                    tx = rx_cmd.response << (40-rx_cmd.resp_len*8);
+                    for (integer i = 0; i < rx_cmd.resp_len; i++) begin
+                        send_byte(tx[39:32]);
+                        tx = tx << 8;
+                    end
+                    if (rx_cmd.cmd ==  SD_CMDS[3].cmd) begin
+
+                        init_cmd_checklist[3] = 1;
+                    end
+
                 end
             end
             rsp = 0;
@@ -189,6 +272,7 @@ module vip_sd_card #(
         
     endtask
 
+    bit cmd_detected = 0;
     task automatic detect_CMD_and_CRC();
         data_packet = 0;
         cmd_crc_check_end_flag = 0;
@@ -219,6 +303,7 @@ module vip_sd_card #(
                         //Copy the matching command from the table
                         rx_cmd = SD_CMDS[i];
                         cmd = cmd_num'(rx_cmd.cmd);
+                        cmd_checklist(cmd);
                         $display("SD-CARD: %s detected, CRC: %2h\n", cmd.name(),rx_cmd.crc);
                         rsp = 1;
                         cmd_detected = 1;
