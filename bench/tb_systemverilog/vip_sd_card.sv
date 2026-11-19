@@ -75,7 +75,8 @@ module vip_sd_card #(
     bit acmd_loop = 0;
     // counter for testing whether driver gets stuck looping ACMD41
     logic[3:0] forever_loop = 0;
-    // "task reaches end" flags
+
+    // "task reaches end" flags for debugging
     bit miso_gen_end_flag, cmd_crc_check_end_flag;
 
 
@@ -283,19 +284,21 @@ module vip_sd_card #(
         data_packet = 0;
         cmd_crc_check_end_flag = 0;
         cmd_detected = 0;
+        counter = 0;
+
         // cs and mosi should be high for powerup, when cs & mosi go low, transfer is initiated
-        @(posedge sclk);
         wait(~cs & ~mosi)
 
         //CMD and CRC reading
         do begin  : Check_cmd
             if (counter < 8'd47) begin : read_mosi
+                @(posedge sclk);
                 data_packet[0] =  mosi;
                 data_packet =  data_packet << 1;
                 counter++;
-                @(posedge sclk);
             end
             else begin
+                @(posedge sclk);
                 counter = 0;
                 data_packet[0] =  mosi;
                 rx_cmd.crc = {data_packet[7:0]};
@@ -313,12 +316,13 @@ module vip_sd_card #(
                         cmd_detected = 1;
                     end
                 end
-                @(posedge sclk);
             end
         end while (~cs & ~rsp);
-                assert(cmd_detected== 1)
-                    else $fatal(0, "\nReceived CMD does not match INIT COMMANDS or One block READ OR WRITE");
-                data_packet = 0;
+
+        assert(cmd_detected== 1)
+            else $fatal(0, "\nReceived CMD does not match INIT COMMANDS or One block READ OR WRITE");
+        data_packet = 0;
+
         cmd_crc_check_end_flag = 1;
         $display("\t###SD-CARD: Task detect_CMD_and_CRC has reached its end ###");
     endtask

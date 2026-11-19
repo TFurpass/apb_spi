@@ -126,7 +126,7 @@ module tb_apb_spi #() ();
         end
 
         //END SIMULATION
-        $finish(1);
+        $finish(2);
 
     end
 
