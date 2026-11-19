@@ -15,7 +15,7 @@ module vip_apb_driver #(
 // this task reads from an APB4 slave, acts as master
     task read(
       input  logic [11:0] addr,
-      output  logic [31:0] data,
+      output  logic [31:0] data
     );
       
       apb_mst.PADDR   = #TA addr;
@@ -40,7 +40,7 @@ module vip_apb_driver #(
      // this task writes to an APB4 slave, acts as master
     task write(
       input  logic [11:0] addr,
-      input  logic [31:0] data,
+      input  logic [31:0] data
     );
       
       apb_mst.PADDR   = #TA addr;

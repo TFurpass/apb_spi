@@ -26,9 +26,7 @@ module tb_apb_spi #() ();
     logic   unused_out, unused_in;
     logic [7:0] cmd_num [0:6] = '{0, 8, 55, 41, 58, 17, 24};
     logic[127:0] mosi_val;
-    (* keep *)
     logic [127:0] counter= 0;
-    (* keep *)
     logic spi_clk, mosi, miso, csn;
     logic DUT_sd_out;
     logic out_en;
@@ -96,7 +94,7 @@ module tb_apb_spi #() ();
             fork
                 i_sd_card.miso_generate();
                 i_sd_card.detect_CMD_and_CRC();
-                i_vip.CMD(cmd_num[5]);
+                i_vip.CMD(cmd_num[i]);
             join
             
             //if the cmd executed is ACMD41 and card responded busy, loop back to cmd55
@@ -128,7 +126,7 @@ module tb_apb_spi #() ();
         end
 
         //END SIMULATION
-        $finish(0);
+        $finish(1);
 
     end
 

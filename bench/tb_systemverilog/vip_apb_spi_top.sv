@@ -183,7 +183,6 @@ module vip_apb_spi #() (
         rsp_type rsp_for_cmd;
         apb_addr_data cmd [0:1] = '{default:'0};
 
-        rsp_found = 0;
         cmd_task_done = 0;
 
         $display("\n\tStarting single command test");
