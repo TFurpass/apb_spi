@@ -10,7 +10,7 @@ module vip_sd_card #(
 );
 
     import sd_reg_pkg::ocr_t;
-    ocr_t ocr = '{1'b0, 1'b0, 1'b0, 4'b0, 9'h1FF, 7'hFF, 1'b0, 7'hFF};
+    ocr_t ocr = '{1'b0, 1'b0, 1'b0, 4'b0, 9'b111111111, 7'b1111111, 1'b0, 7'b1111111};
 
 
    //Check if the dummy SD-card image exists
@@ -20,9 +20,9 @@ module vip_sd_card #(
         fd = $fopen("sdcard.img", "r");
         if (fd == 0) begin
         $display("Failed to open the SD-card image!");
-        $finish;
-        end
-        $fclose(fd);
+        //$finish;
+        end else 
+            $fclose(fd);
     end
 
 
@@ -62,7 +62,7 @@ module vip_sd_card #(
         } cmd_num;
     cmd_num cmd;
 
-    logic [4:0] init_cmd_checklist;
+    logic [4:0] init_cmd_checklist = 0;
     logic [7:0] counter;
     logic [47:0] data_packet;
 
@@ -85,7 +85,7 @@ module vip_sd_card #(
     $display("\tSD-CARD powerup start");
         @(posedge sclk);
         for (cycle_cnt = 0; cycle_cnt < 74; cycle_cnt++) begin
-            assert(cs & mosi);
+            assert(cs & mosi)
             else begin
                 $fatal(0,"\nSD-CARD: powerup of an sd card needs atleast 74 sclk cycles where cs & mosi are high");
             end
@@ -114,7 +114,7 @@ module vip_sd_card #(
             ACMD41:begin
                 assert(init_cmd_checklist[1:0] == 2'b11)
                     else $fatal(0, "\n Earlier init commands have not been issued, wrong init order, got CMD: %s", cmd.name());
-                assert(init_cmd_checklist[2])
+                assert(init_cmd_checklist[2] == 1)
                     else $fatal(0, "\n CMD55 needs to be received before ACMD41, got CMD: %s", cmd.name());
                 if(init_cmd_checklist[3])begin
                     forever_loop++;
@@ -129,6 +129,8 @@ module vip_sd_card #(
                 assert(init_cmd_checklist[3])
                     else $fatal(0, "\n ACMD41 not ready, card never responded with 0");
                 init_cmd_checklist[4]=1;
+                init_cmd_checklist[2]=1;
+
             end
             default: begin
                 assert(init_cmd_checklist == 5'b11111)
@@ -146,7 +148,7 @@ module vip_sd_card #(
             for (integer j = 0; j < 8; j++)begin
                 miso_line = tmp_byte[7];
                 tmp_byte = tmp_byte << 1;
-                @(negedge sclk);
+                @(posedge sclk);
             end
         end
     endtask
@@ -168,9 +170,9 @@ module vip_sd_card #(
     task automatic miso_generate();
         miso_gen_end_flag = 0;
         do begin
-            while(~rsp) begin
+            if(~rsp) begin
                 miso_line = 1;
-                @(negedge sclk);
+                wait(rsp);
             end;
 
             if (rx_cmd.read_block) begin
@@ -182,8 +184,10 @@ module vip_sd_card #(
 
                 //Read image
                 fd = $fopen("sdcard.img", "r");
-                $fread(sector_buf,fd);
-                $fclose(fd);
+                if(fd!=0)begin
+                    $fread(sector_buf,fd);
+                    $fclose(fd);
+                end
 
                 //Send 512 bytes of data
                 for (integer k = 0; k < 512; k++)begin
@@ -244,14 +248,16 @@ module vip_sd_card #(
                         if (rx_cmd.cmd ==  SD_CMDS[3].cmd) begin
                             // ACMD41 check off the list
                             init_cmd_checklist[3] = 1;
+                            
+                        end
+                        if (rx_cmd.cmd ==  SD_CMDS[2].cmd) begin
+                           
                             // ACMD55 check off the list
                             init_cmd_checklist[2] = 1;
                         end
                     end
                 // After one response of not ready, send ready response and check ACMD41 off the checklist
                 end else begin
-                    $display("\t###SD-CARD: Task miso_generate reached second acmd ###");
-
                     //Send regular CMD response
                     tx = rx_cmd.response << (40-rx_cmd.resp_len*8);
                     for (integer i = 0; i < rx_cmd.resp_len; i++) begin
@@ -278,16 +284,15 @@ module vip_sd_card #(
         cmd_crc_check_end_flag = 0;
         cmd_detected = 0;
         // cs and mosi should be high for powerup, when cs & mosi go low, transfer is initiated
-        do begin
-            @(posedge sclk);
-        end while (~(~cs & ~mosi));
+        @(posedge sclk);
+        wait(~cs & ~mosi)
 
         //CMD and CRC reading
         do begin  : Check_cmd
-            data_packet[0] =  mosi;
-            counter++;
-            if (counter < 8'd48) begin : read_mosi
+            if (counter < 8'd47) begin : read_mosi
+                data_packet[0] =  mosi;
                 data_packet =  data_packet << 1;
+                counter++;
                 @(posedge sclk);
             end
             else begin
@@ -309,11 +314,11 @@ module vip_sd_card #(
                     end
                 end
                 @(posedge sclk);
+            end
+        end while (~cs & ~rsp);
                 assert(cmd_detected== 1)
                     else $fatal(0, "\nReceived CMD does not match INIT COMMANDS or One block READ OR WRITE");
                 data_packet = 0;
-            end
-        end while (~cs & ~rsp);
         cmd_crc_check_end_flag = 1;
         $display("\t###SD-CARD: Task detect_CMD_and_CRC has reached its end ###");
     endtask
