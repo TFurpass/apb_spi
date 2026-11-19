@@ -28,3 +28,6 @@ sources:
       - bench/tb_systemverilog/tb_apb_spi.sv
       - bench/tb_systemverilog/vip_apb_driver.sv
       - bench/tb_systemverilog/vip_apb_spi_top.sv
+      - bench/tb_systemverilog/vip_sd_card.sv
+      - bench/tb_systemverilog/out_enable.sv
+
